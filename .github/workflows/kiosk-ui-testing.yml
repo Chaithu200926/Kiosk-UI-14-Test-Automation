@@ -28,6 +28,10 @@ on:
         description: Also run the paying tests (KUI-07/16, 08, 10 by KNET with the fake terminal, about KWD 8 of UAT bookings; KUI-11 wallet KWD 0.500; KUI-20 top-up KWD 10)
         type: boolean
         default: false
+      tests:
+        description: Only these tests (test IDs, e.g. "KUI-06 KUI-10 KUI-15"); empty = all. Paying tests named here run even when the box above is not ticked.
+        type: string
+        default: ''
 
 # Permissions needed to publish to GitHub Pages.
 permissions:
@@ -65,10 +69,17 @@ jobs:
         run: Copy-Item -LiteralPath "${{ vars.KIOSK_UI_ENV_FILE || 'C:\softwares\vs code\playwright\CinescapeKiosk-UI-Automation\.env' }}" -Destination .env
 
       # Run the tests. Failed tests do not stop the job: they are reported on the dashboard.
+      # The chosen test IDs come in through an environment variable (not pasted into the script) and only
+      # "KUI-nn" IDs are used, so a typed value cannot run anything else.
       - name: Run the tests (the kiosk opens full screen)
         continue-on-error: true
+        env:
+          TESTS: ${{ inputs.tests }}
+          PAYING: ${{ inputs.include_paying_tests }}
         run: |
-          if ('${{ inputs.include_paying_tests }}' -eq 'true') { npx playwright test }
+          $ids = @([regex]::Matches("$env:TESTS", 'KUI-\d{2}') | ForEach-Object { $_.Value.Substring(4) } | Select-Object -Unique)
+          if ($ids.Count -gt 0) { npx playwright test --grep "KUI-($($ids -join '|')) " }
+          elseif ($env:PAYING -eq 'true') { npx playwright test }
           else { npx playwright test --grep-invert "KUI-(07|08|10|11|16|20) " }
 
       # Build the dashboard in reports/ (as publish-results does); results.json keeps only the stats.
