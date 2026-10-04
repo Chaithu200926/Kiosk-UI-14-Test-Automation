@@ -14,15 +14,15 @@ export async function upcomingShow(kiosk: Kiosk, options?: Parameters<typeof pic
 }
 
 /**
- * Home → NOW SHOWING → a film on the first screen (no scrolling) that has a show later today →
- * that show, ending on "Select Seat Type". Returns the chosen show.
- * Standard shows by default: VIP and other experiences have different seat types (no "General").
+ * Home → BUY TICKETS → a film on the first screen (no scrolling) that has a show later today →
+ * that show, ending on "SELECT SEAT CATEGORY". Returns the chosen show.
+ * Standard shows by default: VIP and other experiences have different seat categories (no "General").
  */
 export async function openUpcomingShow(kiosk: Kiosk, options?: Parameters<typeof pickShow>[1]): Promise<Show> {
   await kiosk.waitForApiCall('content/csessions');
   const programme = showsFromCalls(kiosk.apiCalls());
-  const show = (await kiosk.step('Open NOW SHOWING', async () => {
-    await kiosk.tap('NOW SHOWING', { settleMs: 1500 });
+  const show = (await kiosk.step('Open BUY TICKETS (films showing now)', async () => {
+    await kiosk.tap('BUY TICKETS', { settleMs: 1500 });
     const onScreen = new Set((await kiosk.visibleTexts()).map((t) => t.name));
     return pickShow(programme.filter((s) => onScreen.has(s.film)), { experience: 'Standard', ...options });
   }))!;
@@ -32,20 +32,54 @@ export async function openUpcomingShow(kiosk: Kiosk, options?: Parameters<typeof
   });
   await kiosk.step(`Choose the ${show.time} ${show.experience} show`, async () => {
     await kiosk.tap(show.time, { settleMs: 2500 });
-    await kiosk.waitForText('Select Seat Type');
+    await kiosk.waitForText(SEAT_CATEGORY);
   });
   return show;
 }
 
-/** Seat areas on "Select Seat Type" with their free seats and price, e.g. General: 138 seats, 3.5 KWD. */
+/** Heading of the first choice after a show time (build New14; "Select Seat Type" before). */
+export const SEAT_CATEGORY = 'SELECT SEAT CATEGORY';
+
+/** Seat categories offered for the show, e.g. ["Family", "General"] (each is a tile with an icon and a name). */
+export async function seatCategories(kiosk: Kiosk): Promise<string[]> {
+  const xml = await kiosk.app.getPageSource();
+  const names: string[] = [];
+  // Each category is a DataItem "...CategoryChoice" holding a Text with AutomationId "Name".
+  for (const block of xml.split('Screens.CategoryChoice').slice(1)) {
+    const name = block.match(/<Text\b[^>]*AutomationId="Name"[^>]*Name="([^"]*)"/)?.[1]
+      ?? block.match(/<Text\b[^>]*Name="([^"]*)"[^>]*AutomationId="Name"/)?.[1];
+    if (name) names.push(name);
+  }
+  return names;
+}
+
+/** Taps a seat category; the seat types of that category then appear under "SELECT SEAT TYPE". */
+export async function chooseCategory(kiosk: Kiosk, category: string) {
+  await kiosk.tap(category, { settleMs: 1500 });
+  await kiosk.waitForText('SELECT SEAT TYPE');
+}
+
+/**
+ * Seat types under "SELECT SEAT TYPE" with their free seats and price, e.g. Standard: 112 seats, 3.5 KWD.
+ * Each tile shows its name, "112 Available" and "KWD 3.500" as three texts.
+ */
 export async function seatAreas(kiosk: Kiosk) {
   const texts = await kiosk.texts();
   const areas: { name: string; available: number; price: number }[] = [];
   texts.forEach((t, i) => {
-    const m = texts[i + 1]?.match(/^(\d+) Available\s+KWD ([\d.]+)$/);
-    if (m) areas.push({ name: t, available: Number(m[1]), price: Number(m[2]) });
+    const seats = texts[i + 1]?.match(/^(\d+) Available$/);
+    const price = texts[i + 2]?.match(/^KWD ([\d.]+)$/);
+    if (seats && price) areas.push({ name: t, available: Number(seats[1]), price: Number(price[1]) });
   });
   return areas;
+}
+
+/** The order total on the cart button at the bottom left of "Select Food" (build New14), e.g. "KWD 3.500". */
+export async function cartTotal(kiosk: Kiosk) {
+  // Menu prices sit next to their ADD buttons; the cart total is the only KWD text inside a button.
+  const el = kiosk.app.$('//Button//Text[starts-with(@Name, "KWD ")]');
+  await el.waitForExist({ timeout: 10_000, timeoutMsg: 'No cart total on the food screen' });
+  return kwd((await el.getAttribute('Name')) ?? '');
 }
 
 /** Reads "Total Ticket Price   KWD 7.000" (NaN when no price is shown yet). */
@@ -53,11 +87,14 @@ export async function totalTicketPrice(kiosk: Kiosk) {
   return kwd(await kiosk.textStartingWith('Total Ticket Price'));
 }
 
-/** Seat type + quantity, then Proceed to the seat map. */
-export async function chooseSeatsType(kiosk: Kiosk, area: string, quantity: number) {
-  await kiosk.step(`Choose ${area} and ${quantity} ticket(s), then proceed to the seat map`, async () => {
-    await kiosk.tap(area);
-    for (let i = 1; i < quantity; i++) await kiosk.tap('+', { settleMs: 500 });
+/** Seat category (e.g. General), its seat type with most free seats, quantity, then Proceed to the seat map. */
+export async function chooseSeatsType(kiosk: Kiosk, category: string, quantity: number) {
+  await kiosk.step(`Choose ${category}, a seat type and ${quantity} ticket(s), then proceed to the seat map`, async () => {
+    await chooseCategory(kiosk, category);
+    const [area] = (await seatAreas(kiosk)).sort((a, b) => b.available - a.available);
+    if (!area) throw new Error(`No seat type is offered under ${category}`);
+    await kiosk.tap(area.name, { settleMs: 800 });
+    for (let i = 1; i < quantity; i++) await kiosk.tapQuantity('+');
     await kiosk.tap('Proceed', { settleMs: 2500 });
     await kiosk.waitForText('Select Seat');
   });
@@ -125,10 +162,40 @@ export async function expectReservation(kiosk: Kiosk, since: number, seats: stri
 /** The cheapest item on the menu, used by the paying food tests to keep the club card spending low. */
 export const CHEAP_FOOD = { tab: 'Beverages', name: 'Aquafina Water UAT', price: 0.5 };
 
-/** On "Select Food": opens the item's tab and taps its ADD button (for items without options). */
+/** On "Select Food": opens the item's tab, taps its ADD button and confirms the item sheet (no options chosen). */
 export async function addFood(kiosk: Kiosk, item = CHEAP_FOOD) {
   await kiosk.tap(item.tab, { settleMs: 1500 });
-  // Each menu row is a DataItem named "FoodItem { ..., Name = <item name>, ... }" holding its ADD button.
-  await kiosk.app.$(`//DataItem[contains(@Name, "Name = ${item.name},")]//Button`).click();
+  // Each menu row (build New14) is a DataItem "...FoodItemView" holding its ADD button, image, name and price.
+  const before = await cartTotal(kiosk);
+  const row = () => kiosk.app.$(`//DataItem[@Name="Cinescape.Kiosk.Presentation.Screens.FoodItemView"][.//Text[@Name="${item.name}"]]//Button[@Name="ADD"]`);
+  // A tap while the tab is still loading is lost, so wait for the item sheet (or the total to change) and tap once more if needed.
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    await row().click();
+    for (let i = 0; i < 10; i++) {
+      await new Promise((r) => setTimeout(r, 500));
+      // Build New14 opens a sheet for every item (here an optional "Temperature" choice); it repeats the item's
+      // name as its title, so the name shows twice while it is open. Confirm it with its ADD.
+      if ((await kiosk.texts()).filter((t) => t === item.name).length > 1) {
+        await addFromSheet(kiosk);
+        return;
+      }
+      if ((await cartTotal(kiosk)) !== before) return;
+    }
+  }
+  throw new Error(`Tapping ADD for "${item.name}" did not add it (tapped twice)`);
+}
+
+/**
+ * Taps ADD on the open item sheet. It is the widest ADD on the screen (137 px against 94 px for the menu rows'
+ * ADD buttons behind the sheet; rows scrolled out of view can even sit below it, so position does not tell).
+ */
+export async function addFromSheet(kiosk: Kiosk) {
+  let widest: { click(): Promise<unknown> } | undefined;
+  let widestW = -1;
+  for (const add of await kiosk.buttons('ADD')) {
+    const { width } = await add.getSize();
+    if (width > widestW) [widest, widestW] = [add, width];
+  }
+  await widest!.click();
   await new Promise((r) => setTimeout(r, 1500));
 }

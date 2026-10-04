@@ -3,7 +3,10 @@
 // The order is recorded as a "paid booking" note.
 import { test, expect } from '../src/fixtures';
 import { addFood, CHEAP_FOOD } from '../src/flows';
-import { payByClubCard, successDetails } from '../src/payment';
+import { payByWallet, skipUnlessWalletCode, successDetails } from '../src/payment';
+
+// Skipped (before the kiosk starts) until a wallet code is configured: see WALLET_CODE_MISSING in src/payment.ts.
+skipUnlessWalletCode();
 import { clubCardBalance } from '../src/web-account';
 
 test('KUI-11 Club card (wallet) payment deducts the balance', async ({ kiosk, config }) => {
@@ -17,15 +20,15 @@ test('KUI-11 Club card (wallet) payment deducts the balance', async ({ kiosk, co
   }))!;
   expect(before.kwd, 'Enough balance for the order').toBeGreaterThanOrEqual(CHEAP_FOOD.price);
 
-  await kiosk.step(`FOOD: order "${CHEAP_FOOD.name}" and go to checkout`, async () => {
-    await kiosk.tap('FOOD', { settleMs: 2500 });
+  await kiosk.step(`ORDER F&B: order "${CHEAP_FOOD.name}" and go to checkout`, async () => {
+    await kiosk.tap('ORDER F&B', { settleMs: 2500 });
     await kiosk.waitForText('Select Food');
     await addFood(kiosk);
     await kiosk.tap('Proceed', { settleMs: 2500 });
     await kiosk.waitForText('Preview and Checkout');
   });
 
-  const payment = await payByClubCard(kiosk);
+  const payment = await payByWallet(kiosk);
 
   await kiosk.step('"Booking Success!" shows the amount paid', async () => {
     await kiosk.waitForText('Booking Success!', 30_000);

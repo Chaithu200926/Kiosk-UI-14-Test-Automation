@@ -1,6 +1,6 @@
 # CinescapeKiosk UI Automation
 
-End-to-end UI tests for the **CinescapeKiosk** Windows app (WPF, build `CinescapeKioskNew13`) against the UAT API.
+End-to-end UI tests for the **CinescapeKiosk** Windows app (WPF, build `CinescapeKioskNew14`) against the UAT API.
 The kiosk is driven with [Appium](https://appium.io) and its **NovaWindows** driver (Windows UI Automation);
 [Playwright Test](https://playwright.dev) is the test runner and report, the same as the web and API projects.
 
@@ -13,31 +13,40 @@ Every test gets a freshly started kiosk and its report contains:
 
 ## What is tested
 
-KNET / credit card is disabled in UAT, so the paying tests pay with the test customer's **club card**. Kiosk
-bookings cannot be cancelled online: every paid BOOKING ID is recorded as a "paid booking" note in the report.
+The paying tests pay by **KNET** with the test kiosk's fake card terminal (`UseFakeTerminal`): it approves at once
+and no card is charged, but every payment creates a real paid UAT booking. Kiosk bookings cannot be cancelled
+online, so every BOOKING ID is recorded as a "paid booking" note in the report. Build New14 removed the CLUB CARD
+payment: paying from the wallet now needs a 6-digit code the kiosk emails to the customer, so the wallet tests skip
+until `KIOSK_WALLET_CODE` is set (a fixed UAT code for the test customer).
 
 | Test | File | What it does |
 |---|---|---|
-| **KUI-01 App start** | [`kui-01-home-screen.spec.ts`](tests/kui-01-home-screen.spec.ts) | Starts the kiosk; checks clock, date, cinema name, all six menu buttons, Arabic and help buttons, promo banner, UPCOMING SHOWS, and that the programme loaded from the API. |
+| **KUI-01 App start** | [`kui-01-home-screen.spec.ts`](tests/kui-01-home-screen.spec.ts) | Starts the kiosk; checks clock, date, cinema name, BUY TICKETS and the seven other home buttons, Arabic and help buttons, promo banner, UPCOMING SHOWS with its filter, and that the programme loaded from the API. |
 | **KUI-02 Language switch** | [`kui-02-language-switch.spec.ts`](tests/kui-02-language-switch.spec.ts) | Arabic translates and mirrors the screens; HOME returns to English. |
-| **KUI-03 Films and show times** | [`kui-03-films-and-showtimes.spec.ts`](tests/kui-03-films-and-showtimes.spec.ts) | NOW SHOWING tiles are in today's programme; a film's details are shown; its show times match the programme (the kiosk sells today only); MOVIES goes back. |
-| **KUI-04 Coming soon** | [`kui-04-coming-soon.spec.ts`](tests/kui-04-coming-soon.spec.ts) | Upcoming films with opening dates and details, not on sale yet. |
-| **KUI-05 Seat type and quantity** | [`kui-05-seat-type-and-quantity.spec.ts`](tests/kui-05-seat-type-and-quantity.spec.ts) | Seat areas list free seats and KWD prices; total = price x quantity for 1, 2, 3 and back to 2; terms shown; Cancel returns to the film. |
+| **KUI-03 Films and show times** | [`kui-03-films-and-showtimes.spec.ts`](tests/kui-03-films-and-showtimes.spec.ts) | BUY TICKETS tiles are in today's programme; a film's details are shown; its show times match the programme (the kiosk sells today only); MOVIES goes back. |
+| **KUI-04 Coming soon** | [`kui-04-coming-soon.spec.ts`](tests/kui-04-coming-soon.spec.ts) | Upcoming films grouped by opening date, with details, not on sale yet. |
+| **KUI-05 Seat category, type and quantity** | [`kui-05-seat-type-and-quantity.spec.ts`](tests/kui-05-seat-type-and-quantity.spec.ts) | Seat categories, then the category's seat types with free seats and KWD prices; total = price x quantity for 1, 2, 3 and back to 2; terms shown; Cancel returns home. |
 | **KUI-06 Seat selection rules** | [`kui-06-seat-selection-rules.spec.ts`](tests/kui-06-seat-selection-rules.spec.ts) | Legend shown; an unavailable seat cannot be chosen; Proceed only when all seats are chosen; tapping a seat again releases it; Reset clears. Nothing is reserved. |
-| **KUI-07 Ticket purchase** (pays ~KWD 3.500) | [`kui-07-16-ticket-purchase-and-pickup.spec.ts`](tests/kui-07-16-ticket-purchase-and-pickup.spec.ts) | 1 ticket end to end, paid by club card; "Booking Success!" details; tickets printed; returns home. |
-| **KUI-08 Food purchase** (pays KWD 0.500) | [`kui-08-food-purchase.spec.ts`](tests/kui-08-food-purchase.spec.ts) | Food-only order of the cheapest item; FOOD PICKUP NO. on "Booking Success!". |
-| **KUI-09 Food combo options** | [`kui-09-food-combo-options.spec.ts`](tests/kui-09-food-combo-options.spec.ts) | Reserves a seat, adds a combo with a popcorn flavour and a drink, checks cart and totals up to "Preview and Checkout", then cancels (the kiosk cancels the reservation). |
-| **KUI-10 Tickets and food** (pays ~KWD 4.000) | [`kui-10-tickets-and-food.spec.ts`](tests/kui-10-tickets-and-food.spec.ts) | 1 ticket + food in one order, one payment; both BOOKING ID and FOOD PICKUP NO. shown. |
-| **KUI-11 Club card payment** (pays KWD 0.500) | [`kui-11-club-card-payment.spec.ts`](tests/kui-11-club-card-payment.spec.ts) | The club card balance on the UAT website goes down by exactly the amount paid. |
-| **KUI-14 Cancel releases seats** | [`kui-14-cancel-releases-seats.spec.ts`](tests/kui-14-cancel-releases-seats.spec.ts) | Reserves a seat (`content/trans/reserveseats`), cancels on the food screen, checks `content/trans/cancel` succeeded for the same transaction and the seat is free again. |
-| **KUI-15 Idle timeout** | [`kui-15-idle-timeout.spec.ts`](tests/kui-15-idle-timeout.spec.ts) | An untouched kiosk returns home and releases held seats. |
+| **KUI-07 Ticket purchase** (KNET, ~KWD 3.500 booking) | [`kui-07-16-ticket-purchase-and-pickup.spec.ts`](tests/kui-07-16-ticket-purchase-and-pickup.spec.ts) | 1 ticket end to end, paid by KNET (fake terminal); "Booking Success!" details; tickets and card receipt printed; returns home. |
+| **KUI-08 Food purchase** (KNET, KWD 0.500 booking) | [`kui-08-food-purchase.spec.ts`](tests/kui-08-food-purchase.spec.ts) | Food-only order of the cheapest item from ORDER F&B; FOOD PICKUP NO. on "Booking Success!". |
+| **KUI-09 Food combo options** | [`kui-09-food-combo-options.spec.ts`](tests/kui-09-food-combo-options.spec.ts) | Reserves a seat, adds a combo with a popcorn flavour and a drink on the options sheet, checks the cart ("Your order") and totals up to "Preview and Checkout", then cancels. |
+| **KUI-10 Tickets and food** (KNET, ~KWD 4.000 booking) | [`kui-10-tickets-and-food.spec.ts`](tests/kui-10-tickets-and-food.spec.ts) | 1 ticket + food in one order, one KNET payment; both BOOKING ID and FOOD PICKUP NO. shown. |
+| **KUI-11 Wallet payment** | [`kui-11-club-card-payment.spec.ts`](tests/kui-11-club-card-payment.spec.ts) | Skipped until `KIOSK_WALLET_CODE` is set: the club card balance on the UAT website goes down by exactly the amount paid from the wallet. |
+| **KUI-14 Cancel releases seats** | [`kui-14-cancel-releases-seats.spec.ts`](tests/kui-14-cancel-releases-seats.spec.ts) | Reserves a seat, cancels on the food screen, checks `content/trans/cancel` succeeded and the seat is free when the show is opened again. |
+| **KUI-15 Idle timeout** | [`kui-15-idle-timeout.spec.ts`](tests/kui-15-idle-timeout.spec.ts) | "Are you still there?" appears; YES, I'M HERE keeps the session; untouched, the kiosk returns home and releases held seats. |
 | **KUI-16 Pickup** | [`kui-07-16-ticket-purchase-and-pickup.spec.ts`](tests/kui-07-16-ticket-purchase-and-pickup.spec.ts) | Picks up KUI-07's booking by BOOKING ID; unknown IDs and a second pickup are refused. |
-| **KUI-17 Email my tickets** (pays ~KWD 3.500) | [`kui-17-email-my-tickets.spec.ts`](tests/kui-17-email-my-tickets.spec.ts) | After a ticket purchase: EMAIL MY TICKETS, name + ending (or OTHER + domain), "Is this correct?", Send; checks `history/resend` and the sent message. |
+| **KUI-17 Email my tickets** | [`kui-17-email-my-tickets.spec.ts`](tests/kui-17-email-my-tickets.spec.ts) | On hold on request (skipped). |
 | **KUI-21 Printer not ready** | [`kui-21-printer-not-ready.spec.ts`](tests/kui-21-printer-not-ready.spec.ts) | Blocked (not run): the fake printer cannot be put out of paper. |
 | **KUI-23 API unavailable** | [`kui-23-api-unavailable.spec.ts`](tests/kui-23-api-unavailable.spec.ts) | Simulated API outage: friendly messages, no crash, recovers when the API is back. |
+| **KUI-24 Advance booking** | [`kui-24-advance-booking.spec.ts`](tests/kui-24-advance-booking.spec.ts) | Films on advance booking, details and show times; a show opens the seat category screen; Cancel returns home. |
+| **KUI-25 Upcoming shows filter** | [`kui-25-upcoming-shows-filter.spec.ts`](tests/kui-25-upcoming-shows-filter.spec.ts) | Each experience chip (4DX, Dolby, VIP) lists only its shows; All lists them all. |
+| **KUI-26 Customer code check** | [`kui-26-wallet-code-sign-in.spec.ts`](tests/kui-26-wallet-code-sign-in.spec.ts) | TOP UP: club card, SEND CODE (`kiosk/identity/start`), a wrong code is refused (`kiosk/identity/verify`). Emails one unused code per run. |
+| **KUI-27 Help button** | [`kui-27-help-calls-staff.spec.ts`](tests/kui-27-help-calls-staff.spec.ts) | ? shows "Need help?" and sends a Help alert to staff (`content/kiosk-alerts/printer`). Sends one alert per run. |
+| **KUI-28 Prepare food** | [`kui-28-prepare-food.spec.ts`](tests/kui-28-prepare-food.spec.ts) | PREPARE FOOD refuses an unknown booking ID (`content/food/kiosk/prepare`, state NOT_FOUND). |
+| **KUI-29 Checkout** | [`kui-29-checkout-country-code-and-payment-methods.spec.ts`](tests/kui-29-checkout-country-code-and-payment-methods.spec.ts) | Country code picker; payment methods KNET / CREDIT CARD, WALLET, GIFT CARD, VOUCHER; WALLET asks who the customer is; cancels without paying. |
 
-Not automated: sign-in / register (KUI-18/19, excluded on request), KNET payments and top-up (KUI-12/13/20, KNET
-disabled in UAT), admin tool (KUI-22, needs the admin PIN).
+Not automated: register (KUI-30, on hold on request), declined / timed-out KNET payments (KUI-12/13, the fake
+terminal always approves), top-up (KUI-20, needs the emailed code), staff settings (KUI-22, needs the staff PINs).
 
 The full list of 23 approved test cases and their status is in `C:\softwares\KNCC testing\KNCC-Test-Cases-All-Projects.xlsx`.
 
@@ -45,7 +54,7 @@ The full list of 23 approved test cases and their status is in `C:\softwares\KNC
 
 - Windows 10/11, **logged in and unlocked** while tests run (the kiosk opens full screen; Windows blocks
   screenshots and taps while the PC is locked).
-- The kiosk app at `C:\ProgramData\KNCC\CinescapeKioskNew13\CinescapeKiosk.exe` (or set `KIOSK_APP_PATH`),
+- The kiosk app at `C:\ProgramData\KNCC\CinescapeKioskNew14\CinescapeKiosk.exe` (or set `KIOSK_APP_PATH`),
   with `UseFakeTerminal` and `UseFakePrinter` set to `true` in its `kiosk.settings.json`. The app reads that file
   from its own folder, and a new build's folder has none: copy it over from the previous build.
   Logs, the paper counter and other state stay in `C:\ProgramData\KNCC\CinescapeKioskNew` for every build.
@@ -54,7 +63,7 @@ The full list of 23 approved test cases and their status is in `C:\softwares\KNC
 
 ```bash
 npm ci                          # installs Playwright, WebdriverIO, Appium and the NovaWindows driver
-cp .env.example .env            # optional for now: only on-hold tests need values
+cp .env.example .env            # test mobile, club card and other test values
 ```
 
 ## Run
@@ -95,11 +104,11 @@ signing level"), so IT has to allow the runner first.
 |---|---|
 | `src/fixtures.ts` | Starts a fresh kiosk per test, records the video, attaches screenshots / API calls, closes the kiosk. |
 | `src/kiosk.ts` | Tap buttons by their visible text, wait for texts, keypad typing with a check, seat map and seat colours, cropped screenshots, `kiosk.step()`. |
-| `src/flows.ts` | Shared booking steps (open a show, seat type, pick free seats, check the reservation). They never go past "Preview and Checkout". |
+| `src/flows.ts` | Shared booking steps (open a show, seat category and type, pick free seats, cart total, check the reservation). They never go past "Preview and Checkout". |
 | `src/api-recorder.ts` | Local HTTP proxy: the kiosk inherits `HTTP_PROXY` from Appium, so every API call it makes is recorded to `test-results/kiosk-api-calls.jsonl`. |
 | `src/programme.ts` | Picks a film and a show time later today from the programme the kiosk itself loaded. |
 | `src/video.ts` | Screen video of the kiosk area with ffmpeg. |
-| `scripts/inspect.mjs` | **Inspector** for writing new tests: `npm run appium` in one terminal, then `npm run inspect -- start`, `-- dump name`, `-- click "NOW SHOWING"`, `-- stop`. |
+| `scripts/inspect.mjs` | **Inspector** for writing new tests: `npm run appium` in one terminal, then `npm run inspect -- start`, `-- dump name`, `-- click "BUY TICKETS"`, `-- stop`. |
 
 Locator notes (the kiosk has only a few automation IDs):
 
@@ -107,6 +116,9 @@ Locator notes (the kiosk has only a few automation IDs):
 - Seats are `Place` buttons with a `Number` text inside a row item; their state is read from the screen colour
   (white = available, grey = unavailable, red = selected).
 - The kiosk drops taps that come too fast, so keypad digits and seats are checked after each tap.
+- Build New14: home tiles are list items named `HomeTile { Key = …, Text = TOP UP, … }` whose inner button is not
+  always exposed, so `kiosk.tap()` falls back to the tile; the ticket quantity − / + are icon buttons found by
+  position (`kiosk.tapQuantity()`).
 
 ## Findings so far
 
@@ -114,7 +126,9 @@ Locator notes (the kiosk has only a few automation IDs):
   charged **KWD 3.500** (29 Sep 2026). To be confirmed with the developers (booking fee or price mismatch).
 - The kiosk keeps polling `payment/knet/kiosk/status` for an old booking (2003638) and gets "There are no
   active bookings." every few minutes.
-- Tickets printed at purchase are not marked as collected, so the first pickup prints them again (KUI-16).
+- Tickets printed at purchase are not marked as collected, so the first pickup prints them again (KUI-16, build New13).
+- Build New14 (4 Oct 2026): UAT does not accept 111111 as the emailed wallet code for the existing test customer, so
+  wallet payments and top-up cannot be automated without a fixed test code or mailbox access.
 - EMAIL MY TICKETS fails: `history/resend` answers code 12002 "Something went wrong!" for a valid booking and
   address, and the kiosk shows "The email could not be sent..." (30 Sep 2026, build CinescapeKioskNew13, KUI-17).
 - Error banners (e.g. "The email could not be sent...", "Tickets have already been collected...") are drawn but not

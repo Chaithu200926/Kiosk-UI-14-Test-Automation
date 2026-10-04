@@ -1,6 +1,6 @@
 // KUI-14: seats the kiosk reserved are released again when the customer cancels.
 import { test, expect } from '../src/fixtures';
-import { chooseSeatsType, expectReservation, openUpcomingShow, pickFreeSeats } from '../src/flows';
+import { chooseSeatsType, expectReservation, openUpcomingShow, pickFreeSeats, SEAT_CATEGORY } from '../src/flows';
 
 test('KUI-14 Cancel during booking releases the reserved seats', async ({ kiosk }) => {
   const show = await openUpcomingShow(kiosk);
@@ -25,9 +25,18 @@ test('KUI-14 Cancel during booking releases the reserved seats', async ({ kiosk 
     expect(String((cancel.requestBody as { transid: unknown }).transid), 'Cancelled transaction').toBe(String(reservation!.transid));
   });
 
-  await kiosk.step(`Back on the seat map, ${seat} is free again`, async () => {
-    await kiosk.waitForText('Select Seat');
-    // The kiosk reloads the seat map after the cancel.
+  await kiosk.step('The kiosk returns to the home screen', async () => {
+    await kiosk.waitForText('UPCOMING SHOWS');
+  });
+
+  await kiosk.step(`Open the same show again: ${seat} is free on the seat map`, async () => {
+    await kiosk.tap('BUY TICKETS', { settleMs: 1500 });
+    await kiosk.tap(show.film, { settleMs: 1500 });
+    await kiosk.tap(show.time, { settleMs: 2500 });
+    await kiosk.waitForText(SEAT_CATEGORY);
+  });
+  await chooseSeatsType(kiosk, 'General', 1);
+  await kiosk.step(`${seat} is available again`, async () => {
     await expect.poll(async () => (await kiosk.seatStates()).get(seat), { timeout: 15_000 }).toBe('available');
   });
 });

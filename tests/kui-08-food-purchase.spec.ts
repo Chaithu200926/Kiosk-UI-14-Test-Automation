@@ -1,19 +1,19 @@
-// KUI-08: a food-only order from the home screen, paid by club card, completes with a food pickup number
-// and the kiosk returns home. Uses the cheapest item (KWD 0.500) to keep the club card spending low;
+// KUI-08: a food-only order from ORDER F&B, paid by KNET (fake terminal, no card charged), completes with a food
+// pickup number and the kiosk returns home. Uses the cheapest item (KWD 0.500);
 // the order is recorded as a "paid booking" note.
 import { test, expect } from '../src/fixtures';
-import { addFood, CHEAP_FOOD, kwd } from '../src/flows';
-import { expectReturnsHome, payByClubCard, successDetails } from '../src/payment';
+import { addFood, cartTotal, CHEAP_FOOD, kwd } from '../src/flows';
+import { expectReturnsHome, payByKnet, successDetails } from '../src/payment';
 
-test('KUI-08 Food purchase end to end, paid by club card', async ({ kiosk }) => {
+test('KUI-08 Food purchase end to end, paid by KNET', async ({ kiosk }) => {
   test.setTimeout(6 * 60_000);
 
-  await kiosk.step(`FOOD: add "${CHEAP_FOOD.name}" and check the total`, async () => {
-    await kiosk.tap('FOOD', { settleMs: 2500 });
+  await kiosk.step(`ORDER F&B: add "${CHEAP_FOOD.name}" and check the total`, async () => {
+    await kiosk.tap('ORDER F&B', { settleMs: 2500 });
     await kiosk.waitForText('Select Food');
-    expect(kwd(await kiosk.textStartingWith('Total')), 'Empty order').toBe(0);
+    expect(await cartTotal(kiosk), 'Empty order').toBe(0);
     await addFood(kiosk);
-    expect(kwd(await kiosk.textStartingWith('Total')), 'Total after adding the item').toBeCloseTo(CHEAP_FOOD.price, 3);
+    expect(await cartTotal(kiosk), 'Total after adding the item').toBeCloseTo(CHEAP_FOOD.price, 3);
   });
 
   await kiosk.step('"Preview and Checkout" lists the item, the total and when it is prepared', async () => {
@@ -24,11 +24,12 @@ test('KUI-08 Food purchase end to end, paid by club card', async ({ kiosk }) => 
     expect(kwd(await kiosk.textStartingWith('Total '))).toBeCloseTo(CHEAP_FOOD.price, 3);
   });
 
-  const payment = await payByClubCard(kiosk);
+  const payment = await payByKnet(kiosk);
 
   await kiosk.step('"Booking Success!" shows the food pickup number, the item, the BOOKING ID and the amount', async () => {
     await kiosk.waitForText('Booking Success!', 30_000);
-    expect(await kiosk.hasText('Your food is being prepared now. Please go to the pickup counter and show your receipt.'), 'Pickup instructions').toBe(true);
+    // The instructions follow the printing messages, so give them a moment.
+    await expect.soft.poll(() => kiosk.hasTextContaining('Your food is being prepared'), { message: 'Pickup instructions', timeout: 20_000 }).toBe(true);
     expect(await kiosk.hasText(`1 x ${CHEAP_FOOD.name}`), 'Item').toBe(true);
     const d = await successDetails(kiosk);
     expect(d.foodPickupNumber, 'FOOD PICKUP NO.').toMatch(/^\d+$/);

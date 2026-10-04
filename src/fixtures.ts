@@ -4,7 +4,7 @@ import path from 'node:path';
 import { test as base } from '@playwright/test';
 import { config, type Config } from './config';
 import { closeAllKiosks, desktopIsLocked } from './desktop';
-import { Kiosk } from './kiosk';
+import { HOME_MARKER, Kiosk } from './kiosk';
 import { ScreenVideo } from './video';
 
 export const test = base.extend<{ kiosk: Kiosk; config: Config }>({
@@ -36,8 +36,8 @@ export const test = base.extend<{ kiosk: Kiosk; config: Config }>({
     let kioskPid = '';
 
     try {
-      // The home screen is ready when the main menu is shown.
-      await kiosk.waitForText('NOW SHOWING', 90_000);
+      // The home screen is ready when the main menu is shown (after the 5 s "Starting the kiosk" screen).
+      await kiosk.waitForText(HOME_MARKER, 90_000);
       // The menu appears before the kiosk has finished loading its data, and taps in that moment are ignored.
       await kiosk.waitForText('UPCOMING SHOWS', 30_000);
       await new Promise((resolve) => setTimeout(resolve, 3000));

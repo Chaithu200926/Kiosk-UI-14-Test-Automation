@@ -5,7 +5,10 @@
 // The address is private (public report): screenshots black it out and the video stays paused from checkout on.
 import { test, expect } from '../src/fixtures';
 import { chooseSeatsType, openUpcomingShow, pickFreeSeats } from '../src/flows';
-import { expectReturnsHome, payByClubCard, successDetails } from '../src/payment';
+import { expectReturnsHome, payByWallet, successDetails } from '../src/payment';
+
+// On hold on request (4 Oct 2026): the email ticket scenario is parked, and it also needs a wallet payment.
+test.skip(true, 'On hold on request (4 Oct 2026): email my tickets is parked for now.');
 
 const SENT = 'Your tickets are on their way to your email.';
 const FAILED = 'The email could not be sent. Your paper tickets are all you need.';
@@ -29,7 +32,7 @@ test('KUI-17 Email my tickets after a purchase', async ({ kiosk, config }) => {
     await kiosk.waitForText('Preview and Checkout');
   });
 
-  const payment = await payByClubCard(kiosk);
+  const payment = await payByWallet(kiosk);
   // The success screen goes home by itself after about 36 s: open the email screen straight away.
   await kiosk.step('"Booking Success!" offers EMAIL MY TICKETS', async () => {
     await kiosk.waitForText('Booking Success!', 30_000);

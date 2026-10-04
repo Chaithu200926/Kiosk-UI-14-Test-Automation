@@ -1,4 +1,4 @@
-// KUI-03: NOW SHOWING lists today's films and each film shows the show times from today's programme.
+// KUI-03: BUY TICKETS (films showing now) lists today's films and each film shows the show times from today's programme.
 import { test, expect } from '../src/fixtures';
 import { pickShow, showsFromCalls } from '../src/programme';
 
@@ -7,8 +7,8 @@ test('KUI-03 Films and show times match today\'s programme', async ({ kiosk }) =
   const programme = showsFromCalls(kiosk.apiCalls());
   const filmsToday = new Set(programme.map((s) => s.film));
 
-  await kiosk.step('Open NOW SHOWING', async () => {
-    await kiosk.tap('NOW SHOWING', { settleMs: 1500 });
+  await kiosk.step('Open BUY TICKETS (films showing now)', async () => {
+    await kiosk.tap('BUY TICKETS', { settleMs: 1500 });
   });
 
   // Returns a film on the first screen (no scrolling) that still has a show later today.

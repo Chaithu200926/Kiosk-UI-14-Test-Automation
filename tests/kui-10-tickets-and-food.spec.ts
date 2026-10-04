@@ -1,11 +1,11 @@
-// KUI-10: 1 ticket and a food item in one order, paid once by club card; the success screen shows both
+// KUI-10: 1 ticket and a food item in one order, paid once by KNET (fake terminal, no card charged); the success screen shows both
 // the seat and the food pickup number under one BOOKING ID. (The back-office check stays manual.)
-// Spends about KWD 4.000 per run (ticket + cheapest item); recorded as a "paid booking" note.
+// Creates one paid UAT booking of about KWD 4.000 per run (ticket + cheapest item); recorded as a "paid booking" note.
 import { test, expect } from '../src/fixtures';
-import { addFood, CHEAP_FOOD, chooseSeatsType, kwd, openUpcomingShow, pickFreeSeats } from '../src/flows';
-import { expectReturnsHome, payByClubCard, successDetails } from '../src/payment';
+import { addFood, cartTotal, CHEAP_FOOD, chooseSeatsType, kwd, openUpcomingShow, pickFreeSeats } from '../src/flows';
+import { expectReturnsHome, payByKnet, successDetails } from '../src/payment';
 
-test('KUI-10 Tickets and food in one order, paid once by club card', async ({ kiosk }) => {
+test('KUI-10 Tickets and food in one order, paid once by KNET', async ({ kiosk }) => {
   test.setTimeout(8 * 60_000);
   const show = await openUpcomingShow(kiosk);
   await chooseSeatsType(kiosk, 'General', 1);
@@ -18,9 +18,9 @@ test('KUI-10 Tickets and food in one order, paid once by club card', async ({ ki
   }))!;
 
   const ticketTotal = (await kiosk.step(`Add "${CHEAP_FOOD.name}": the total rises by its price`, async () => {
-    const before = kwd(await kiosk.textStartingWith('Total'));
+    const before = await cartTotal(kiosk);
     await addFood(kiosk);
-    expect(kwd(await kiosk.textStartingWith('Total')), 'Total with food').toBeCloseTo(before + CHEAP_FOOD.price, 3);
+    expect(await cartTotal(kiosk), 'Total with food').toBeCloseTo(before + CHEAP_FOOD.price, 3);
     return before;
   }))!;
 
@@ -34,7 +34,7 @@ test('KUI-10 Tickets and food in one order, paid once by club card', async ({ ki
     return t;
   }))!;
 
-  const payment = await payByClubCard(kiosk);
+  const payment = await payByKnet(kiosk);
 
   await kiosk.step('"Booking Success!" shows both references (BOOKING ID and FOOD PICKUP NO.), the seat and one total', async () => {
     await kiosk.waitForText('Booking Success!', 30_000);
@@ -46,10 +46,10 @@ test('KUI-10 Tickets and food in one order, paid once by club card', async ({ ki
     expect(d.totalPaid, 'Total paid (tickets + food)').toBeCloseTo(total, 3);
   });
 
-  await kiosk.step('One club card payment and one booking for tickets and food', async () => {
-    const pays = kiosk.apiCalls().filter((c) => c.time >= payment.since && c.path.startsWith('clubcard/kiosk/pay'));
+  await kiosk.step('One KNET payment and one booking for tickets and food', async () => {
+    const pays = kiosk.apiCalls().filter((c) => c.time >= payment.since && c.path.startsWith('payment/knet/kiosk/confirm'));
     const bookings = kiosk.apiCalls().filter((c) => c.time >= payment.since && c.path.startsWith('content/trans/tckbooked'));
-    expect(pays, 'Club card payments').toHaveLength(1);
+    expect(pays, 'KNET payments').toHaveLength(1);
     expect(bookings, 'Confirmed bookings').toHaveLength(1);
   });
 

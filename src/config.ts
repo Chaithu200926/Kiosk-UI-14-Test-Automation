@@ -6,7 +6,7 @@ import dotenv from 'dotenv';
 dotenv.config({ path: path.resolve(__dirname, '..', '.env'), quiet: true });
 
 const localAppData = process.env.LOCALAPPDATA ?? path.join(os.homedir(), 'AppData', 'Local');
-const appPath = process.env.KIOSK_APP_PATH || 'C:\\ProgramData\\KNCC\\CinescapeKioskNew13\\CinescapeKiosk.exe';
+const appPath = process.env.KIOSK_APP_PATH || 'C:\\ProgramData\\KNCC\\CinescapeKioskNew14\\CinescapeKiosk.exe';
 
 export const config = {
   /* The kiosk program the tests start, and the settings file it reads (for the API address and key). */
@@ -28,8 +28,10 @@ export const config = {
     username: process.env.KIOSK_TEST_USERNAME || '',
     password: process.env.KIOSK_TEST_PASSWORD || '',
     otp: process.env.KIOSK_TEST_OTP || '',
-    /* Club card (wallet) number, typed at the club card payment step. */
+    /* Club card (wallet) number, typed to identify the customer when paying from the wallet. */
     clubCard: process.env.KIOSK_TEST_CLUB_CARD || '',
+    /* Code that confirms the wallet customer (build New14 emails one; UAT needs a fixed code for the test customer). */
+    walletCode: process.env.KIOSK_WALLET_CODE || '',
     /* Address KUI-17 emails the tickets to (default: the customer's login email). */
     ticketsEmail: process.env.KIOSK_TEST_EMAIL || process.env.KIOSK_TEST_USERNAME || '',
   },
@@ -54,7 +56,7 @@ export type Config = typeof config;
  */
 export function privateValues(): string[] {
   const emails = [config.customer.username, config.customer.ticketsEmail].flatMap((e) => [e, e.toLowerCase(), e.split('@')[0].toLowerCase()]);
-  return [...new Set([config.customer.clubCard, config.mobile, ...emails])].filter((v) => v.length >= 6);
+  return [...new Set([config.customer.clubCard, config.mobile, config.customer.walletCode, ...emails])].filter((v) => v.length >= 6);
 }
 
 /** Replaces every private value in a text with "***". */

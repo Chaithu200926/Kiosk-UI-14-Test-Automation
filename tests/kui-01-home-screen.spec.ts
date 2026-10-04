@@ -1,4 +1,4 @@
-// KUI-01: the kiosk starts without an error and shows the complete home screen.
+// KUI-01: the kiosk starts without an error and shows the complete home screen (layout of build New14).
 import { test, expect } from '../src/fixtures';
 
 test('KUI-01 App start: the home screen loads with all menu buttons', async ({ kiosk }) => {
@@ -14,8 +14,10 @@ test('KUI-01 App start: the home screen loads with all menu buttons', async ({ k
     expect.soft(cinema, 'Cinema name').toBeTruthy();
   });
 
-  await kiosk.step('Main menu buttons are all present', async () => {
-    for (const label of ['NOW SHOWING', 'COMING SOON', 'PICK UP TICKETS', 'FOOD', 'PREPARE FOOD', 'REGISTER']) {
+  await kiosk.step('Main menu buttons are all present (BUY TICKETS, three tiles, and FOOD AND ACCOUNT)', async () => {
+    expect.soft(await kiosk.hasText('Films showing now'), 'BUY TICKETS subtitle').toBe(true);
+    expect.soft(await kiosk.hasText('FOOD AND ACCOUNT'), 'FOOD AND ACCOUNT heading').toBe(true);
+    for (const label of ['BUY TICKETS', 'ADVANCE BOOKING', 'COMING SOON', 'PICK UP TICKETS', 'ORDER F&B', 'PREPARE FOOD', 'TOP UP', 'REGISTER']) {
       expect.soft(await kiosk.hasButton(label), `${label} button`).toBe(true);
     }
     // Arabic switch and help.
@@ -23,9 +25,10 @@ test('KUI-01 App start: the home screen loads with all menu buttons', async ({ k
     expect.soft(await kiosk.hasButton('?'), 'Help (?) button').toBe(true);
   });
 
-  await kiosk.step('Promo banner and UPCOMING SHOWS are shown', async () => {
+  await kiosk.step('Promo banner and UPCOMING SHOWS with its experience filter are shown', async () => {
     expect.soft(await kiosk.app.$('~Promo').isExisting(), 'Promo banner').toBe(true);
     expect.soft(await kiosk.hasText('UPCOMING SHOWS'), 'UPCOMING SHOWS heading').toBe(true);
+    expect.soft(await kiosk.hasButton('All'), '"All" experience filter').toBe(true);
   });
 
   await kiosk.step('The kiosk loaded today\'s programme from the API', async () => {

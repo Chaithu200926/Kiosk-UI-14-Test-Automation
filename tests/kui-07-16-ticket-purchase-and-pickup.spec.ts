@@ -1,17 +1,17 @@
-// KUI-07: buy 1 ticket end to end, paid by club card (KNET is disabled in UAT).
+// KUI-07: buy 1 ticket end to end, paid by KNET (the test kiosk's fake terminal approves; no card is charged).
 // KUI-16: pick up that booking by its BOOKING ID; a second pickup is refused.
 // The two run in order in one file, so the pickup test reuses KUI-07's booking instead of buying another.
-// Spends about KWD 3.500 of the test club card per run; the BOOKING ID is recorded as a "paid booking" note.
+// Creates one paid UAT booking (about KWD 3.500) per run; the BOOKING ID is recorded as a "paid booking" note.
 import { test, expect } from '../src/fixtures';
 import { chooseSeatsType, kwd, openUpcomingShow, pickFreeSeats } from '../src/flows';
-import { expectReturnsHome, payByClubCard, successDetails } from '../src/payment';
+import { expectReturnsHome, payByKnet, successDetails } from '../src/payment';
 
 test.describe.configure({ mode: 'serial' });
 
 // Set by KUI-07, used by KUI-16.
 let bought: { reference: string; film: string; seat: string } | undefined;
 
-test('KUI-07 Ticket purchase end to end, paid by club card', async ({ kiosk }) => {
+test('KUI-07 Ticket purchase end to end, paid by KNET', async ({ kiosk }) => {
   test.setTimeout(8 * 60_000);
   const show = await openUpcomingShow(kiosk);
   await chooseSeatsType(kiosk, 'General', 1);
@@ -32,7 +32,7 @@ test('KUI-07 Ticket purchase end to end, paid by club card', async ({ kiosk }) =
     return kwd(await kiosk.textStartingWith('Total '));
   });
 
-  const payment = await payByClubCard(kiosk);
+  const payment = await payByKnet(kiosk);
 
   const details = (await kiosk.step('"Booking Success!" shows the BOOKING ID, show, seat and amount paid', async () => {
     await kiosk.waitForText('Booking Success!', 30_000);
@@ -40,14 +40,18 @@ test('KUI-07 Ticket purchase end to end, paid by club card', async ({ kiosk }) =
     expect(d.reference, 'BOOKING ID = the confirmed booking').toBe(payment.reference);
     expect(await kiosk.hasText(show.film), 'Film').toBe(true);
     expect(d.dateTime, 'Date & time').toContain(show.time);
-    expect(d.category, 'Category').toBe('General');
+    // Build New14 shows the category and seat type, e.g. "General · Standard".
+    expect(d.category, 'Category').toContain('General');
     expect(d.seats, 'Seats').toEqual([seat]);
     expect(d.totalPaid, 'Total paid').toBeCloseTo(total!, 3);
     return d;
   }))!;
 
-  await kiosk.step('The ticket is printed: "Please collect your tickets." and EMAIL MY TICKETS is offered', async () => {
+  await kiosk.step('The ticket and the card receipt are printed: "Please collect your tickets." and EMAIL MY TICKETS is offered', async () => {
     await kiosk.waitForText('Please collect your tickets.', 60_000);
+    expect.soft(await kiosk.hasText('Please take everything from the printer'), 'Take everything from the printer').toBe(true);
+    expect.soft(await kiosk.hasText('1. Your tickets (1)'), 'Printed: your tickets').toBe(true);
+    expect.soft(await kiosk.hasText('2. Your card receipt'), 'Printed: card receipt').toBe(true);
     expect(await kiosk.hasButton('EMAIL MY TICKETS'), 'EMAIL MY TICKETS').toBe(true);
   });
 

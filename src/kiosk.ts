@@ -12,6 +12,8 @@ export type KioskSession = Awaited<ReturnType<typeof remote>>;
 export type SeatState = 'available' | 'unavailable' | 'selected';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+/** The big home button (build New14; it was NOW SHOWING before). Its text marks the home screen. */
+export const HOME_MARKER = 'BUY TICKETS';
 // XPath string literal that works whatever quotes the text contains.
 const lit = (text: string) => (text.includes('"') ? `'${text}'` : `"${text}"`);
 
@@ -38,7 +40,11 @@ export class Kiosk {
   async buttons(label: string) {
     const byText = await this.app.$$(`//Button[.//Text[@Name=${lit(label)}]]`).getElements();
     if (byText.length) return byText;
-    return this.app.$$(`//Button[@Name=${lit(label)}]`).getElements();
+    const byName = await this.app.$$(`//Button[@Name=${lit(label)}]`).getElements();
+    if (byName.length) return byName;
+    // Build New14 home tiles are list items named "HomeTile { Key = topup, Text = TOP UP, ... }"; their inner
+    // button and text are not always exposed to UI Automation, so the tile itself is tapped then.
+    return this.app.$$(`//DataItem[contains(@Name, ${lit(`Text = ${label},`)})]`).getElements();
   }
 
   async hasButton(label: string) {
@@ -108,6 +114,23 @@ export class Kiosk {
     await sleep(options.settleMs ?? 800);
   }
 
+  /**
+   * Taps − or + next to "Ticket Quantity". On build New14 they are icon buttons without a name: + is the
+   * right-most unnamed button in that row, − (shown once the quantity is above 1) the left-most.
+   */
+  async tapQuantity(sign: '+' | '−') {
+    const row = await this.text('Ticket Quantity').getLocation();
+    const inRow: { el: { click(): Promise<unknown> }; x: number }[] = [];
+    for (const el of await this.app.$$('//Button[@Name=""]').getElements()) {
+      const [pos, size] = [await el.getLocation(), await el.getSize()];
+      if (Math.abs(pos.y + size.height / 2 - (row.y + 10)) < 30 && pos.x > row.x + 150) inRow.push({ el, x: pos.x });
+    }
+    inRow.sort((a, b) => a.x - b.x);
+    if (!inRow.length || (sign === '−' && inRow.length < 2)) throw new Error(`The ${sign} button next to Ticket Quantity was not found`);
+    await (sign === '+' ? inRow[inRow.length - 1] : inRow[0]).el.click();
+    await sleep(600);
+  }
+
   async isEnabled(label: string) {
     const el = await this.button(label);
     return (await el.getAttribute('IsEnabled')) === 'True';
@@ -115,15 +138,16 @@ export class Kiosk {
 
   /**
    * Types digits on the on-screen keypad one at a time. Fast taps are sometimes dropped by the kiosk,
-   * so after typing it checks the displayed value and retries once.
+   * so after typing it checks the displayed value and retries once. `shownAs: null` skips the check
+   * (e.g. a code typed into one box per digit).
    */
-  async typeDigits(digits: string, shownAs = digits) {
+  async typeDigits(digits: string, shownAs: string | null = digits) {
     for (let attempt = 1; attempt <= 2; attempt++) {
       for (const d of digits) await this.tap(d, { settleMs: 350 });
-      if (await this.hasText(shownAs)) return;
+      if (shownAs === null || await this.hasText(shownAs)) return;
       for (let i = 0; i < digits.length + 2; i++) await this.tap('⌫', { settleMs: 200 });
     }
-    throw new Error(`The keypad did not show "${hidePrivate(shownAs)}" after typing it twice`);
+    throw new Error(`The keypad did not show "${hidePrivate(shownAs ?? '')}" after typing it twice`);
   }
 
   /**
@@ -267,13 +291,13 @@ export class Kiosk {
   /** Presses Cancel / HOME until the home screen is back (used to leave a booking cleanly). */
   async backToHome(maxPresses = 8) {
     for (let i = 0; i < maxPresses; i++) {
-      if (await this.hasText('NOW SHOWING') && await this.hasText('UPCOMING SHOWS')) return;
+      if (await this.hasText(HOME_MARKER) && await this.hasText('UPCOMING SHOWS')) return;
       if (await this.hasButton('HOME')) await this.tap('HOME', { settleMs: 1500 });
       else if (await this.hasButton('Cancel')) await this.tap('Cancel', { settleMs: 1500 });
       else if (await this.hasButton('Back')) await this.tap('Back', { settleMs: 1500 });
       else break;
     }
-    if (!(await this.hasText('NOW SHOWING'))) throw new Error('Could not return to the home screen');
+    if (!(await this.hasText(HOME_MARKER))) throw new Error('Could not return to the home screen');
   }
 }
 
