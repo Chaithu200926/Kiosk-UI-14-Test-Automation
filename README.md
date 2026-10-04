@@ -16,8 +16,9 @@ Every test gets a freshly started kiosk and its report contains:
 The paying tests pay by **KNET** with the test kiosk's fake card terminal (`UseFakeTerminal`): it approves at once
 and no card is charged, but every payment creates a real paid UAT booking. Kiosk bookings cannot be cancelled
 online, so every BOOKING ID is recorded as a "paid booking" note in the report. Build New14 removed the CLUB CARD
-payment: paying from the wallet now needs a 6-digit code the kiosk emails to the customer, so the wallet tests skip
-until `KIOSK_WALLET_CODE` is set (a fixed UAT code for the test customer).
+payment: paying from the wallet and topping up now need a 6-digit code the kiosk emails to the customer. UAT accepts
+`111111` for the test customer (since 4 Oct 2026): set `KIOSK_WALLET_CODE=111111` in `.env`, otherwise the wallet
+tests skip themselves.
 
 | Test | File | What it does |
 |---|---|---|
@@ -31,7 +32,8 @@ until `KIOSK_WALLET_CODE` is set (a fixed UAT code for the test customer).
 | **KUI-08 Food purchase** (KNET, KWD 0.500 booking) | [`kui-08-food-purchase.spec.ts`](tests/kui-08-food-purchase.spec.ts) | Food-only order of the cheapest item from ORDER F&B; FOOD PICKUP NO. on "Booking Success!". |
 | **KUI-09 Food combo options** | [`kui-09-food-combo-options.spec.ts`](tests/kui-09-food-combo-options.spec.ts) | Reserves a seat, adds a combo with a popcorn flavour and a drink on the options sheet, checks the cart ("Your order") and totals up to "Preview and Checkout", then cancels. |
 | **KUI-10 Tickets and food** (KNET, ~KWD 4.000 booking) | [`kui-10-tickets-and-food.spec.ts`](tests/kui-10-tickets-and-food.spec.ts) | 1 ticket + food in one order, one KNET payment; both BOOKING ID and FOOD PICKUP NO. shown. |
-| **KUI-11 Wallet payment** | [`kui-11-club-card-payment.spec.ts`](tests/kui-11-club-card-payment.spec.ts) | Skipped until `KIOSK_WALLET_CODE` is set: the club card balance on the UAT website goes down by exactly the amount paid from the wallet. |
+| **KUI-11 Wallet payment** (KWD 0.500 from the club card) | [`kui-11-club-card-payment.spec.ts`](tests/kui-11-club-card-payment.spec.ts) | Pays a food order from the wallet (club card + code); the balance the kiosk shows goes down by exactly the amount paid. |
+| **KUI-20 Top up** (adds KWD 10 by KNET) | [`kui-20-top-up-wallet.spec.ts`](tests/kui-20-top-up-wallet.spec.ts) | TOP UP: club card + code, balance and amounts shown, KWD 10 paid by KNET (fake terminal), "was added to your club card", balance + 10. |
 | **KUI-14 Cancel releases seats** | [`kui-14-cancel-releases-seats.spec.ts`](tests/kui-14-cancel-releases-seats.spec.ts) | Reserves a seat, cancels on the food screen, checks `content/trans/cancel` succeeded and the seat is free when the show is opened again. |
 | **KUI-15 Idle timeout** | [`kui-15-idle-timeout.spec.ts`](tests/kui-15-idle-timeout.spec.ts) | "Are you still there?" appears; YES, I'M HERE keeps the session; untouched, the kiosk returns home and releases held seats. |
 | **KUI-16 Pickup** | [`kui-07-16-ticket-purchase-and-pickup.spec.ts`](tests/kui-07-16-ticket-purchase-and-pickup.spec.ts) | Picks up KUI-07's booking by BOOKING ID; unknown IDs and a second pickup are refused. |
@@ -46,7 +48,7 @@ until `KIOSK_WALLET_CODE` is set (a fixed UAT code for the test customer).
 | **KUI-29 Checkout** | [`kui-29-checkout-country-code-and-payment-methods.spec.ts`](tests/kui-29-checkout-country-code-and-payment-methods.spec.ts) | Country code picker; payment methods KNET / CREDIT CARD, WALLET, GIFT CARD, VOUCHER; WALLET asks who the customer is; cancels without paying. |
 
 Not automated: register (KUI-30, on hold on request), declined / timed-out KNET payments (KUI-12/13, the fake
-terminal always approves), top-up (KUI-20, needs the emailed code), staff settings (KUI-22, needs the staff PINs).
+terminal always approves), staff settings (KUI-22, needs the staff PINs).
 
 The full list of 23 approved test cases and their status is in `C:\softwares\KNCC testing\KNCC-Test-Cases-All-Projects.xlsx`.
 
@@ -125,8 +127,8 @@ Locator notes (the kiosk has only a few automation IDs):
 - The kiosk keeps polling `payment/knet/kiosk/status` for an old booking (2003638) and gets "There are no
   active bookings." every few minutes.
 - Tickets printed at purchase are not marked as collected, so the first pickup prints them again (KUI-16, build New13).
-- Build New14 (4 Oct 2026): UAT does not accept 111111 as the emailed wallet code for the existing test customer, so
-  wallet payments and top-up cannot be automated without a fixed test code or mailbox access.
+- Build New14 (4 Oct 2026): the emailed wallet code was not accepted as 111111 at first; after the backend restart
+  on 4 Oct 2026 UAT accepts 111111 for the test customer.
 - EMAIL MY TICKETS fails: `history/resend` answers code 12002 "Something went wrong!" for a valid booking and
   address, and the kiosk shows "The email could not be sent..." (30 Sep 2026, build CinescapeKioskNew13, KUI-17).
 - Error banners (e.g. "The email could not be sent...", "Tickets have already been collected...") are drawn but not

@@ -16,6 +16,15 @@ export interface Payment {
   reference: string;
   /** The kiosk's calls after PAY started (payment, booking confirmation, ...). */
   since: number;
+  /** Wallet payments: the club card balance the kiosk showed before paying (kiosk/identity/verify), in KWD. */
+  balanceBefore?: number;
+}
+
+/** Taps the pay button, which reads "PAY KWD 10.000" once an amount is known (build New14), otherwise "PAY". */
+export async function tapPay(kiosk: Kiosk, amount: number) {
+  const label = `PAY KWD ${amount.toFixed(3)}`;
+  for (let i = 0; i < 40 && !(await kiosk.hasButton(label)) && !(await kiosk.hasButton('PAY')); i++) await new Promise((r) => setTimeout(r, 500));
+  await kiosk.tap((await kiosk.hasButton(label)) ? label : 'PAY', { settleMs: 500 });
 }
 
 /**
@@ -73,22 +82,57 @@ export async function payByKnet(kiosk: Kiosk): Promise<Payment> {
 
 /** Why the paying tests are skipped while no wallet code is configured (build New14). */
 export const WALLET_CODE_MISSING =
-  'Blocked on build New14: paying from the wallet needs the 6-digit code the kiosk emails to the customer '
-  + '(kiosk/identity/start), and UAT rejects 111111 for the test customer (tried by club card and by mobile on 4 Oct 2026; the code always goes to the account email). Set KIOSK_WALLET_CODE in .env '
-  + 'once UAT has a fixed code for the test customer.';
+  'Set KIOSK_WALLET_CODE in .env: paying from the wallet and topping up need the 6-digit code the kiosk emails to the '
+  + 'customer (kiosk/identity/start); UAT accepts 111111 for the test customer since 4 Oct 2026.';
 
-/** Skips a paying test (before anything is reserved) while no wallet code is configured. */
+/** Skips a wallet test (before anything is reserved) while no wallet code is configured. */
 export function skipUnlessWalletCode() {
   test.skip(!config.customer.walletCode, WALLET_CODE_MISSING);
+}
+
+/** What the kiosk knows about the customer after the code check (kiosk/identity/verify). */
+export interface WalletCustomer {
+  firstName: string;
+  maskedCard: string;
+  /** Club card balance in KWD. */
+  balance: number;
+}
+
+/**
+ * On a "Enter your mobile number, email or club card number" panel (TOP UP, or PAY FROM YOUR WALLET): Club card →
+ * the card number → SEND CODE (kiosk/identity/start) → the code (KIOSK_WALLET_CODE, 111111 on UAT) → CONFIRM
+ * (kiosk/identity/verify). Returns the customer's name, masked card and balance. Screenshots black out the card number.
+ */
+export async function identifyByCode(kiosk: Kiosk): Promise<WalletCustomer> {
+  if (!config.customer.clubCard) throw new Error('Set KIOSK_TEST_CLUB_CARD in .env');
+  if (!config.customer.walletCode) throw new Error(WALLET_CODE_MISSING);
+  kiosk.privateOnScreen = true;
+  await kiosk.step('Club card: type the card number and SEND CODE (kiosk/identity/start)', async () => {
+    const since = Date.now();
+    await kiosk.tap('Club card', { settleMs: 1000 });
+    await kiosk.typeDigits(config.customer.clubCard);
+    await kiosk.tap('SEND CODE', { settleMs: 2500 });
+    const start = await kiosk.waitForApiCall('kiosk/identity/', since);
+    expect((start.responseBody as { code: number; msg: string }).code, 'Code sent').toBe(10001);
+    await kiosk.waitForText('Enter the code');
+  });
+  return (await kiosk.step('Enter the code and CONFIRM (kiosk/identity/verify): the customer is known', async () => {
+    const since = Date.now();
+    await kiosk.typeDigits(config.customer.walletCode, null);
+    await kiosk.tap('CONFIRM', { settleMs: 2500 });
+    const verify = await kiosk.waitForApiCall('kiosk/identity/verify', since);
+    const body = verify.responseBody as { code: number; msg: string; output?: { firstName: string; maskedCard: string; balance: string } };
+    expect(body.code, `Code accepted: ${body.msg}`).toBe(10001);
+    return { firstName: body.output!.firstName, maskedCard: body.output!.maskedCard, balance: Number(body.output!.balance) };
+  }))!;
 }
 
 /**
  * From "Preview and Checkout": mobile number → PROCEED TO PAYMENT → WALLET → "PAY FROM YOUR WALLET":
  * identify with the club card number → SEND CODE → the emailed code → CONFIRM → PAY, until the wallet payment is
  * answered. (Build New14 replaced the CLUB CARD method, where only the card number was typed, with this.)
- * The steps up to the code were checked on the kiosk on 4 Oct 2026; the screen after CONFIRM follows the build's
- * texts ("Wallet balance", "Balance after") and is not seen yet. The video pauses while the mobile and card number
- * are on screen, and screenshots black them out.
+ * The code is KIOSK_WALLET_CODE (UAT accepts 111111 since 4 Oct 2026). The video pauses while the mobile and card
+ * number are on screen, and screenshots black them out.
  */
 export async function payByWallet(kiosk: Kiosk): Promise<Payment> {
   if (!config.mobile || !config.customer.clubCard) throw new Error('Set KIOSK_TEST_MOBILE and KIOSK_TEST_CLUB_CARD in .env');
@@ -112,24 +156,18 @@ export async function payByWallet(kiosk: Kiosk): Promise<Payment> {
     expect(await kiosk.hasText('Enter your mobile number, email or club card number. We will email you a code.')).toBe(true);
   });
 
-  await kiosk.step('Club card: type the card number and SEND CODE (kiosk/identity/start)', async () => {
-    const since = Date.now();
-    await kiosk.tap('Club card', { settleMs: 1000 });
-    await kiosk.typeDigits(config.customer.clubCard);
-    await kiosk.tap('SEND CODE', { settleMs: 2500 });
-    const start = await kiosk.waitForApiCall('kiosk/identity/start', since);
-    expect((start.responseBody as { code: number; msg: string }).code, 'Code sent').toBe(10001);
-    await kiosk.waitForText('Enter the code');
-  });
+  const customer = await identifyByCode(kiosk);
 
   const since = Date.now();
-  await kiosk.step('Enter the code, CONFIRM (kiosk/identity/verify), then PAY', async () => {
-    await kiosk.typeDigits(config.customer.walletCode, null);
-    await kiosk.tap('CONFIRM', { settleMs: 2500 });
-    const verify = await kiosk.waitForApiCall('kiosk/identity/verify', since);
-    expect((verify.responseBody as { code: number; msg: string }).code, `Code accepted: ${(verify.responseBody as { msg: string }).msg}`).toBe(10001);
-    await kiosk.waitForText('Wallet balance', 20_000);
-    await kiosk.tap('PAY', { settleMs: 500 });
+  await kiosk.step(`Wallet balance KWD ${customer.balance.toFixed(3)}, order total and balance after are shown: PAY KWD ${total.toFixed(3)}`, async () => {
+    // "Wallet balance  KWD 233.500 / Order total  KWD 0.500 / Balance after  KWD 233.000" (labels and amounts are separate texts).
+    await kiosk.waitForText('Balance after', 20_000);
+    const texts = await kiosk.texts();
+    const after = (label: string) => texts[texts.indexOf(label) + 1] ?? '';
+    expect(kwd(after('Wallet balance')), 'Wallet balance = the balance from the code check').toBeCloseTo(customer.balance, 3);
+    expect(kwd(after('Order total')), 'Order total').toBeCloseTo(total, 3);
+    expect(kwd(after('Balance after')), 'Balance after = balance - order total').toBeCloseTo(customer.balance - total, 3);
+    await tapPay(kiosk, total);
   });
 
   const payment = await kiosk.step('The wallet payment is approved and the booking confirmed (clubcard/kiosk/pay, content/trans/tckbooked)', async () => {
@@ -150,7 +188,7 @@ export async function payByWallet(kiosk: Kiosk): Promise<Payment> {
     expect(confirmation.output?.bookingId, 'Same booking as the payment').toBe(bookingId);
     const reference = confirmation.output!.kioskId;
     note.description = paidNote(`BOOKING ID ${reference} (booking ${bookingId})`, total);
-    return { amount: total, bookingId, reference, since };
+    return { amount: total, bookingId, reference, since, balanceBefore: customer.balance };
   });
   // The payment screen is gone once the kiosk has moved on to the result.
   for (let i = 0; i < 60 && (await kiosk.hasText('PAY FROM YOUR WALLET')); i++) await new Promise((r) => setTimeout(r, 500));
