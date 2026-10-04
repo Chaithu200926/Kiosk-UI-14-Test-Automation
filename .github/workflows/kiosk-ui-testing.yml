@@ -7,8 +7,8 @@
 #     on the run page, and turns the run red if any test failed.
 #   * Optional: "Run workflow" with "Run the tests on the QA PC's runner" ticked runs the tests from GitHub.
 #     This needs a self-hosted runner with label "kiosk-ui" started with run.cmd in the logged-in, unlocked
-#     desktop session of the QA PC (not as a service: the kiosk opens full screen). Currently blocked: Windows
-#     Code Integrity (Device Guard) on the QA PC does not allow the runner program; IT has to allow it first.
+#     desktop session of the QA PC (not as a service: the kiosk opens full screen). Registered on 4 Oct 2026
+#     (C:ctions-runner) once Windows Code Integrity allowed the runner program.
 # There is deliberately no pull_request trigger: the repo is public and the runner is inside the office.
 name: KIOSK UI Testing
 
@@ -25,7 +25,7 @@ on:
         type: boolean
         default: false
       include_paying_tests:
-        description: Also run the tests that pay with the test club card (KUI-07/16, 08, 10, 11, 17; about KWD 12)
+        description: Also run the paying tests (KUI-07/16, 08, 10; KNET with the fake terminal, about KWD 8 of real UAT bookings)
         type: boolean
         default: false
 
@@ -69,7 +69,7 @@ jobs:
         continue-on-error: true
         run: |
           if ('${{ inputs.include_paying_tests }}' -eq 'true') { npx playwright test }
-          else { npx playwright test --grep-invert "KUI-(07|08|10|11|16|17) " }
+          else { npx playwright test --grep-invert "KUI-(07|08|10|16) " }
 
       # Build the dashboard in reports/ (as publish-results does); results.json keeps only the stats.
       - name: Build the dashboard
