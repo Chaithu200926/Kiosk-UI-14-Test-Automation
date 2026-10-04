@@ -99,6 +99,34 @@ export interface WalletCustomer {
 }
 
 /**
+ * Taps SEND CODE and returns the kiosk's code request (kiosk/identity/start, or kiosk/identity/topup/start). UAT
+ * refuses code requests that come too close together ("Too many attempts. Please try again later."): then it waits a
+ * minute and asks again, up to three times, and returns the last answer.
+ */
+export async function sendCode(kiosk: Kiosk, since = Date.now()) {
+  let start;
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    const tapped = Date.now();
+    await kiosk.tap('SEND CODE', { settleMs: 2500 });
+    start = await kiosk.waitForApiCall('kiosk/identity/', Math.max(since, tapped));
+    const body = start.responseBody as { code: number; msg: string };
+    if (body.code === 10001 || !/too many attempts/i.test(body.msg) || attempt === 4) break;
+    test.info().annotations.push({ type: 'note', description: `Code request refused ("${body.msg}"); asked again after 60 s (attempt ${attempt + 1}).` });
+    await waitOnScreen(kiosk, 60_000);
+  }
+  return start!;
+}
+
+/** Waits without leaving the screen: answers "Are you still there?" with YES, I'M HERE so the kiosk does not go home. */
+async function waitOnScreen(kiosk: Kiosk, ms: number) {
+  const until = Date.now() + ms;
+  while (Date.now() < until) {
+    await new Promise((r) => setTimeout(r, 3000));
+    if (await kiosk.hasButton("YES, I'M HERE")) await kiosk.tap("YES, I'M HERE", { settleMs: 1000 });
+  }
+}
+
+/**
  * On a "Enter your mobile number, email or club card number" panel (TOP UP, or PAY FROM YOUR WALLET): Club card →
  * the card number → SEND CODE (kiosk/identity/start) → the code (KIOSK_WALLET_CODE, 111111 on UAT) → CONFIRM
  * (kiosk/identity/verify). Returns the customer's name, masked card and balance. Screenshots black out the card number.
@@ -111,16 +139,22 @@ export async function identifyByCode(kiosk: Kiosk): Promise<WalletCustomer> {
     const since = Date.now();
     await kiosk.tap('Club card', { settleMs: 1000 });
     await kiosk.typeDigits(config.customer.clubCard);
-    await kiosk.tap('SEND CODE', { settleMs: 2500 });
-    const start = await kiosk.waitForApiCall('kiosk/identity/', since);
+    const start = await sendCode(kiosk, since);
     expect((start.responseBody as { code: number; msg: string }).code, 'Code sent').toBe(10001);
     await kiosk.waitForText('Enter the code');
   });
   return (await kiosk.step('Enter the code and CONFIRM (kiosk/identity/verify): the customer is known', async () => {
-    const since = Date.now();
-    await kiosk.typeDigits(config.customer.walletCode, null);
-    await kiosk.tap('CONFIRM', { settleMs: 2500 });
-    const verify = await kiosk.waitForApiCall('kiosk/identity/verify', since);
+    // The code boxes show no digits to check, and a tap during the screen change is lost: if CONFIRM did not reach
+    // the server (no kiosk/identity/verify), clear the boxes and type the code once more.
+    let verify;
+    for (let attempt = 1; attempt <= 2 && !verify; attempt++) {
+      const since = Date.now();
+      await kiosk.typeDigits(config.customer.walletCode, null);
+      await kiosk.tap('CONFIRM', { settleMs: 2500 });
+      verify = await kiosk.waitForApiCall('kiosk/identity/verify', since, 10_000).catch(() => undefined);
+      if (!verify) for (let i = 0; i < config.customer.walletCode.length + 2; i++) await kiosk.tap('⌫', { settleMs: 200 });
+    }
+    if (!verify) throw new Error('The code was typed twice but CONFIRM never reached the server (kiosk/identity/verify)');
     const body = verify.responseBody as { code: number; msg: string; output?: { firstName: string; maskedCard: string; balance: string } };
     expect(body.code, `Code accepted: ${body.msg}`).toBe(10001);
     return { firstName: body.output!.firstName, maskedCard: body.output!.maskedCard, balance: Number(body.output!.balance) };
@@ -162,11 +196,9 @@ export async function payByWallet(kiosk: Kiosk): Promise<Payment> {
   await kiosk.step(`Wallet balance KWD ${customer.balance.toFixed(3)}, order total and balance after are shown: PAY KWD ${total.toFixed(3)}`, async () => {
     // "Wallet balance  KWD 233.500 / Order total  KWD 0.500 / Balance after  KWD 233.000" (labels and amounts are separate texts).
     await kiosk.waitForText('Balance after', 20_000);
-    const texts = await kiosk.texts();
-    const after = (label: string) => texts[texts.indexOf(label) + 1] ?? '';
-    expect(kwd(after('Wallet balance')), 'Wallet balance = the balance from the code check').toBeCloseTo(customer.balance, 3);
-    expect(kwd(after('Order total')), 'Order total').toBeCloseTo(total, 3);
-    expect(kwd(after('Balance after')), 'Balance after = balance - order total').toBeCloseTo(customer.balance - total, 3);
+    expect(await amountInRow(kiosk, 'Wallet balance'), 'Wallet balance = the balance from the code check').toBeCloseTo(customer.balance, 3);
+    expect(await amountInRow(kiosk, 'Order total'), 'Order total').toBeCloseTo(total, 3);
+    expect(await amountInRow(kiosk, 'Balance after'), 'Balance after = balance - order total').toBeCloseTo(customer.balance - total, 3);
     await tapPay(kiosk, total);
   });
 
@@ -194,6 +226,25 @@ export async function payByWallet(kiosk: Kiosk): Promise<Payment> {
   for (let i = 0; i < 60 && (await kiosk.hasText('PAY FROM YOUR WALLET')); i++) await new Promise((r) => setTimeout(r, 500));
   kiosk.video?.resume();
   return payment!;
+}
+
+/**
+ * The "KWD ..." amount on the same row as a label, e.g. "Wallet balance ... KWD 233.500". In the page the amount comes
+ * before its label, so it is matched by screen position (same row, to the right of the label).
+ */
+async function amountInRow(kiosk: Kiosk, label: string) {
+  const xml = await kiosk.app.getPageSource();
+  const texts = [...xml.matchAll(/<Text\b[^>]*>/g)].map(([tag]) => ({
+    name: (tag.match(/\bName="([^"]*)"/) || [])[1] ?? '',
+    x: Number((tag.match(/\bx="(-?\d+)"/) || [])[1]),
+    y: Number((tag.match(/\by="(-?\d+)"/) || [])[1]),
+    off: /IsOffscreen="True"/.test(tag),
+  })).filter((t) => !t.off);
+  const at = texts.find((t) => t.name === label);
+  if (!at) throw new Error(`"${label}" is not on the screen`);
+  const amount = texts.find((t) => /^KWD [\d.]+$/.test(t.name) && Math.abs(t.y - at.y) < 15 && t.x > at.x);
+  if (!amount) throw new Error(`No KWD amount next to "${label}"`);
+  return kwd(amount.name);
 }
 
 /** Text of the report note for a paid booking, so it can be cancelled or refunded in the back office. */

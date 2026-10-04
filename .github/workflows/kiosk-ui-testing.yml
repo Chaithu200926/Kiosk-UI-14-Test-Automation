@@ -25,7 +25,7 @@ on:
         type: boolean
         default: false
       include_paying_tests:
-        description: Also run the paying tests (KUI-07/16, 08, 10; KNET with the fake terminal, about KWD 8 of real UAT bookings)
+        description: Also run the paying tests (KUI-07/16, 08, 10 by KNET with the fake terminal, about KWD 8 of UAT bookings; KUI-11 wallet KWD 0.500; KUI-20 top-up KWD 10)
         type: boolean
         default: false
 
@@ -69,7 +69,7 @@ jobs:
         continue-on-error: true
         run: |
           if ('${{ inputs.include_paying_tests }}' -eq 'true') { npx playwright test }
-          else { npx playwright test --grep-invert "KUI-(07|08|10|16) " }
+          else { npx playwright test --grep-invert "KUI-(07|08|10|11|16|20) " }
 
       # Build the dashboard in reports/ (as publish-results does); results.json keeps only the stats.
       - name: Build the dashboard

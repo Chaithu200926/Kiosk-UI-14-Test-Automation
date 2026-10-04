@@ -3,6 +3,7 @@
 // or card" goes back. No money is moved. Each run emails a code to the test customer (it is never used).
 // The club card number is private (public report): screenshots black it out and the video is paused.
 import { test, expect } from '../src/fixtures';
+import { sendCode } from '../src/payment';
 
 const WRONG_CODE = '000000';
 
@@ -23,9 +24,8 @@ test('KUI-26 Wallet code: SEND CODE emails a code, a wrong code is refused', asy
   await kiosk.step('Club card: type the card number and SEND CODE', async () => {
     await kiosk.tap('Club card', { settleMs: 1000 });
     await kiosk.typeDigits(config.customer.clubCard);
-    await kiosk.tap('SEND CODE', { settleMs: 3000 });
-    // TOP UP may use its own start call (kiosk/identity/topup/start); both begin with kiosk/identity/.
-    const start = await kiosk.waitForApiCall('kiosk/identity/', since);
+    // TOP UP uses kiosk/identity/topup/start; sendCode() asks again if UAT says "Too many attempts".
+    const start = await sendCode(kiosk, since);
     const body = start.responseBody as { code: number; msg: string; output?: { sentTo?: string } };
     expect(body.code, `Code sent: ${body.msg}`).toBe(10001);
     expect(body.output?.sentTo, 'Sent to').toBe('the email on your account');
