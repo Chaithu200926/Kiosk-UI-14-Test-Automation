@@ -92,7 +92,7 @@ Dashboard: <https://chaithu200926.github.io/Kiosk-UI-13-Test-Automation/>
 
 **Running the tests from GitHub.** The workflow can also run the tests itself: Actions → KIOSK UI Testing →
 Run workflow → tick "Run the tests on the QA PC's runner" (and, if wanted, the paying KNET tests). It uses the
-self-hosted runner on the QA PC (label `kiosk-ui`, `C:ctions-runner`, registered on 4 Oct 2026), which must be
+self-hosted runner on the QA PC (label `kiosk-ui`, `C:\actions-runner`, registered on 4 Oct 2026), which must be
 started with `run.cmd` in the logged-in, unlocked desktop session (not as a Windows service, because the kiosk opens
 full screen). It uses the QA PC's own `.env` (repository variable `KIOSK_UI_ENV_FILE`, default: this project folder).
 

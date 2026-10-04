@@ -8,7 +8,7 @@
 #   * Optional: "Run workflow" with "Run the tests on the QA PC's runner" ticked runs the tests from GitHub.
 #     This needs a self-hosted runner with label "kiosk-ui" started with run.cmd in the logged-in, unlocked
 #     desktop session of the QA PC (not as a service: the kiosk opens full screen). Registered on 4 Oct 2026
-#     (C:ctions-runner) once Windows Code Integrity allowed the runner program.
+#     (folder C:/actions-runner) once Windows Code Integrity allowed the runner program.
 # There is deliberately no pull_request trigger: the repo is public and the runner is inside the office.
 name: KIOSK UI Testing
 
