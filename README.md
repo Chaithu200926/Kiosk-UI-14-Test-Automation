@@ -90,7 +90,7 @@ The kiosk app and the UAT API are only reachable from the QA PC, so tests run th
 (summary tiles, trend, and every test's steps with screenshots and video) to GitHub Pages and turns red when a
 test failed. The Playwright HTML report is kept local only.
 
-Dashboard: <https://chaithu200926.github.io/Kiosk-UI-13-Test-Automation/>
+Dashboard: <https://chaithu200926.github.io/Kiosk-UI-14-Test-Automation/>
 
 **Running the tests from GitHub.** The workflow can also run the tests itself: Actions → KIOSK UI Testing →
 Run workflow → tick "Run the tests on the QA PC's runner" (and, if wanted, the paying KNET tests). It uses the
