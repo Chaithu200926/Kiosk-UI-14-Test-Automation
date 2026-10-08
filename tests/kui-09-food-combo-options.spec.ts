@@ -1,7 +1,7 @@
 // KUI-09: a food combo with options is added to a ticket order and carried to "Preview and Checkout".
 // The test stops there and cancels: no mobile number, no payment.
 import { test, expect } from '../src/fixtures';
-import { addFromSheet, cartTotal, chooseSeatsType, expectReservation, kwd, openUpcomingShow, pickFreeSeats, FOOD_ADD, FOOD_SCREEN, SHEET_DONE, hasFoodLine } from '../src/flows';
+import { addFromSheet, cartTotal, chooseSeatsType, expectReservation, kwd, openUpcomingShow, pickFreeSeats, CART_HEADING, FOOD_ADD, FOOD_SCREEN, SHEET_DONE, hasFoodLine } from '../src/flows';
 
 const COMBO = 'Medium Popcorn & Soda COMBO2';
 
@@ -40,11 +40,13 @@ test('KUI-09 Food combo options carry through to checkout', async ({ kiosk }) =>
     expect(await cartTotal(kiosk), 'Cart button total').toBeCloseTo(ticketsTotal! + comboPrice!, 3);
   });
 
-  await kiosk.step('The cart ("Your order") lists the combo with its options and the total', async () => {
+  await kiosk.step('The cart ("Cart") lists the combo with its options and the total', async () => {
     await kiosk.tap(`KWD ${(ticketsTotal! + comboPrice!).toFixed(3)}`, { settleMs: 1500 });
-    await kiosk.waitForText('Your order');
+    await kiosk.waitForText(CART_HEADING);
     expect(await kiosk.hasText(COMBO), 'Combo in the cart').toBe(true);
-    expect(await kiosk.hasText('Caramel, Pepsi'), 'Chosen options in the cart').toBe(true);
+    // Build New15 lists each chosen option on its own line (New14: "Caramel, Pepsi").
+    expect(await kiosk.hasText('Caramel'), 'Option Caramel in the cart').toBe(true);
+    expect(await kiosk.hasText('Pepsi'), 'Option Pepsi in the cart').toBe(true);
     expect(kwd(await kiosk.textStartingWith('Total'))).toBeCloseTo(ticketsTotal! + comboPrice!, 3);
   });
 

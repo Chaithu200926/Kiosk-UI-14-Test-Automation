@@ -28,6 +28,8 @@ export class Kiosk {
    * showing them and the failure layout hides them (the report is public).
    */
   privateOnScreen = false;
+  /** Seats found by the last page read of a seat map (their places do not move while the map is open). */
+  private lastSeats: Seat[] = [];
   private shot = 0;
 
   constructor(readonly app: KioskSession, private readonly testInfo: TestInfo, private readonly startedAt: number) {}
@@ -198,18 +200,16 @@ export class Kiosk {
 
   // ---------- seats ----------
 
-  seat(row: string, number: string | number) {
-    return this.app.$(`//DataItem[contains(@Name, ${lit(`Name = ${row},`)})]//Button[@AutomationId="Place"][.//Text[@Name=${lit(String(number))}]]`);
-  }
-
   /**
-   * Taps a seat by its label, e.g. "K27". On build New15 every search on a big seat map takes seconds, and the kiosk
-   * asks "Are you still there?" after about half a minute untouched, so seat work keeps the searches few.
+   * Taps a seat by its label, e.g. "K27", at its place on the screen. On build New15 a search for one seat on the
+   * map did not finish within 10 s even on a 154-seat hall (8 Oct 2026), and the kiosk asks "Are you still there?"
+   * after about half a minute untouched; so the place comes from the last page read of the map (or a new one).
    */
-  async tapSeat(label: string) {
-    const seat = this.seat(label.slice(0, 1), label.slice(1));
-    await seat.waitForExist({ timeout: 10_000, timeoutMsg: `Seat ${label} was not found on the seat map within 10 s` });
-    await seat.click();
+  async tapSeat(label: string, seat?: Seat) {
+    const find = (seats: Seat[]) => seats.find((s) => `${s.row}${s.number}` === label);
+    seat ??= find(this.lastSeats) ?? find(await this.seats());
+    if (!seat) throw new Error(`Seat ${label} is not on the seat map`);
+    await this.app.execute('windows: click', { x: Math.round(seat.x + seat.width / 2), y: Math.round(seat.y + seat.height / 2) });
   }
 
   /** Answers "Are you still there?" with YES, I'M HERE when it shows (checked by its text: the quickest search). */
@@ -254,6 +254,7 @@ export class Kiosk {
         pending = undefined;
       }
     }
+    if (result.length) this.lastSeats = result;
     return result;
   }
 
@@ -269,6 +270,12 @@ export class Kiosk {
     let last = '';
     for (let attempt = 1; ; attempt++) {
       const states = await this.seatColours(seats);
+      // "Are you still there?" darkens the whole map, so every seat reads as unavailable: answer it and read again.
+      if (![...states.values()].some((s) => s !== 'unavailable') && attempt < 6) {
+        await this.stillHere();
+        await sleep(700);
+        continue;
+      }
       const key = [...states.values()].join();
       if (key === last || attempt === 6) return states;
       last = key;

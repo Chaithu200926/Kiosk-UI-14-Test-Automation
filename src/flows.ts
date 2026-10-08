@@ -1,6 +1,6 @@
 // Booking steps shared by several tests. None of them goes past "Preview and Checkout":
 // no mobile number, no sign-in and no payment.
-import { expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import type { Kiosk, Seat } from './kiosk';
 import { pickShow, showsFromCalls, type Show } from './programme';
 
@@ -48,6 +48,8 @@ export const SEAT_CATEGORY = 'SELECT SEAT CATEGORY';
 
 /** Heading of the food screen after the seat map (build New15; "Select Food" before). */
 export const FOOD_SCREEN = 'SELECT FOOD';
+/** Heading of the cart sheet on the food screen (build New15; "Your order" before). */
+export const CART_HEADING = 'Cart';
 
 /** Label of the food menu's add buttons (build New15; "ADD" before). */
 export const FOOD_ADD = 'Add';
@@ -154,12 +156,14 @@ export async function pickFreeSeats(kiosk: Kiosk, count: number): Promise<string
       try {
         for (const seat of block.slice(0, count)) { await selectSeat(kiosk, `${seat.row}${seat.number}`, seat); taken.push(`${seat.row}${seat.number}`); }
         return chosen;
-      } catch {
+      } catch (e) {
+        test.info().annotations.push({ type: 'seat block skipped', description: `${chosen.join(' ')}: ${String(e).slice(0, 200)}` });
         for (const label of taken) await kiosk.tapSeat(label);
       }
     }
   }
-  throw new Error(`No block of ${count} free seat(s) found on the seat map`);
+  const free = [...states.values()].filter((s) => s === 'available').length;
+  throw new Error(`No block of ${count} free seat(s) found on the seat map (${seats.length} seats read, ${free} looked free)`);
 }
 
 /**
@@ -169,7 +173,7 @@ export async function pickFreeSeats(kiosk: Kiosk, count: number): Promise<string
  */
 export async function selectSeat(kiosk: Kiosk, label: string, seat?: Seat) {
   for (let attempt = 1; attempt <= 2; attempt++) {
-    await kiosk.tapSeat(label);
+    await kiosk.tapSeat(label, seat);
     let selected = false;
     if (seat) {
       for (let i = 0; i < 10 && !selected; i++) {

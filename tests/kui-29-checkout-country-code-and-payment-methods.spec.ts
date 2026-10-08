@@ -3,7 +3,7 @@
 // to the account of the mobile at once. The test stops there (one code is emailed, nothing is paid) and cancels:
 // the kiosk cancels the seat reservation. The mobile is private: screenshots black it out and the video is paused.
 import { test, expect } from '../src/fixtures';
-import { chooseSeatsType, expectReservation, kwd, openUpcomingShow, pickFreeSeats, FOOD_SCREEN } from '../src/flows';
+import { chooseSeatsType, expectReservation, kwd, openUpcomingShow, pickFreeSeats, CART_HEADING, FOOD_SCREEN } from '../src/flows';
 import { WALLET_CODE_SENT } from '../src/payment';
 
 const COUNTRIES = ['Kuwait', 'Saudi Arabia', 'United Arab Emirates', 'Qatar', 'Bahrain', 'Oman'];
@@ -23,7 +23,7 @@ test('KUI-29 Checkout: country code picker and the payment methods', async ({ ki
     if (await kiosk.hasText(FOOD_SCREEN)) {
       await kiosk.tap('Proceed', { settleMs: 2500 });
     }
-    if (await kiosk.hasText('Your order')) {
+    if (await kiosk.hasText(CART_HEADING)) {
       await kiosk.tap('Proceed', { nth: (await kiosk.buttons('Proceed')).length, settleMs: 2500 });
     }
     await kiosk.waitForText('Preview and Checkout');
