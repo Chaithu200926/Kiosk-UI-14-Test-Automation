@@ -5,6 +5,7 @@ import { test as base } from '@playwright/test';
 import { config, type Config } from './config';
 import { closeAllKiosks, desktopIsLocked } from './desktop';
 import { HOME_MARKER, Kiosk } from './kiosk';
+import { clearKioskData } from './kiosk-data';
 import { ScreenVideo } from './video';
 
 export const test = base.extend<{ kiosk: Kiosk; config: Config }>({
@@ -17,6 +18,18 @@ export const test = base.extend<{ kiosk: Kiosk; config: Config }>({
       throw new Error('Windows is locked. UI tests need an unlocked, logged-in desktop: unlock the PC and run again.');
     }
     closeAllKiosks();
+    // Start fresh: nothing the kiosk saved in earlier tests (payment journal, print archive, cached settings, paper
+    // counter, screensaver media). A kiosk just closed can hold its files for a moment, so try a few times.
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const removed = clearKioskData();
+        testInfo.annotations.push({ type: 'fresh start', description: removed.length ? `Cleared before start: ${removed.join(', ')}` : 'Nothing to clear' });
+        break;
+      } catch (e) {
+        if (attempt === 5) throw new Error(`Could not clear the kiosk's saved data in ${config.kioskDataDir}: ${e}`);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
     const startedAt = Date.now();
 
     // Start the kiosk through Appium. It inherits HTTP_PROXY, so its API calls go through the recorder.

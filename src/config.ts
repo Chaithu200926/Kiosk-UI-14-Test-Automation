@@ -37,8 +37,14 @@ export const config = {
   },
   /* UAT website, where KUI-11 reads the club card balance (My Account). */
   webUrl: process.env.KIOSK_WEB_URL || 'https://uatweb.cinescape.com.kw',
+  /*
+   * Where the kiosk keeps its data between starts (every build uses the same folder): state\ (payment journal, print
+   * archive, cached server settings, paper counter, chosen cinema), saver\ (screensaver media) and logs\.
+   * Each test starts with this folder cleared (src/kiosk-data.ts).
+   */
+  kioskDataDir: process.env.KIOSK_DATA_DIR || 'C:\\ProgramData\\KNCC\\CinescapeKioskNew',
   /* The kiosk's paper counter (roll length and paper used); KUI-21 marks the roll used up to simulate "out of paper". */
-  paperRollFile: process.env.KIOSK_PAPER_ROLL_FILE || 'C:\\ProgramData\\KNCC\\CinescapeKioskNew\\state\\paper-roll.json',
+  paperRollFile: process.env.KIOSK_PAPER_ROLL_FILE || path.join(process.env.KIOSK_DATA_DIR || 'C:\\ProgramData\\KNCC\\CinescapeKioskNew', 'state', 'paper-roll.json'),
   /* Admin PIN of this test kiosk (the settings file only holds its hash). */
   adminPin: process.env.KIOSK_ADMIN_PIN || '',
 
