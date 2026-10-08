@@ -1,9 +1,10 @@
 // KUI-29: "Preview and Checkout" on build New14: the mobile number has a country code picker (+965 Kuwait first),
-// and the payment methods are KNET / CREDIT CARD, WALLET, GIFT CARD and VOUCHER; WALLET asks for the mobile, email
-// or club card before it emails a code. The test stops there (no code is sent, nothing is paid) and cancels:
+// and the payment methods are KNET / CREDIT CARD, WALLET, GIFT CARD and VOUCHER; on build New15 WALLET emails a code
+// to the account of the mobile at once. The test stops there (one code is emailed, nothing is paid) and cancels:
 // the kiosk cancels the seat reservation. The mobile is private: screenshots black it out and the video is paused.
 import { test, expect } from '../src/fixtures';
-import { chooseSeatsType, expectReservation, kwd, openUpcomingShow, pickFreeSeats } from '../src/flows';
+import { chooseSeatsType, expectReservation, kwd, openUpcomingShow, pickFreeSeats, FOOD_SCREEN } from '../src/flows';
+import { WALLET_CODE_SENT } from '../src/payment';
 
 const COUNTRIES = ['Kuwait', 'Saudi Arabia', 'United Arab Emirates', 'Qatar', 'Bahrain', 'Oman'];
 const METHODS = ['KNET / CREDIT CARD', 'WALLET', 'GIFT CARD', 'VOUCHER'];
@@ -14,11 +15,17 @@ test('KUI-29 Checkout: country code picker and the payment methods', async ({ ki
   await chooseSeatsType(kiosk, 'General', 1);
 
   const since = Date.now();
-  await kiosk.step('Choose a free seat, proceed and SKIP food', async () => {
+  await kiosk.step('Choose a free seat, skip food and continue to checkout', async () => {
     await pickFreeSeats(kiosk, 1);
     await kiosk.tap('Proceed', { settleMs: 2500 });
-    await kiosk.waitForText('Select Food');
+    await kiosk.waitForText(FOOD_SCREEN);
     await kiosk.tap('SKIP', { settleMs: 2500 });
+    if (await kiosk.hasText(FOOD_SCREEN)) {
+      await kiosk.tap('Proceed', { settleMs: 2500 });
+    }
+    if (await kiosk.hasText('Your order')) {
+      await kiosk.tap('Proceed', { nth: (await kiosk.buttons('Proceed')).length, settleMs: 2500 });
+    }
     await kiosk.waitForText('Preview and Checkout');
   });
   const reservation = await expectReservation(kiosk, since, []);
@@ -56,13 +63,14 @@ test('KUI-29 Checkout: country code picker and the payment methods', async ({ ki
   });
   kiosk.video?.resume();
 
-  await kiosk.step('WALLET: "PAY FROM YOUR WALLET" asks for the mobile, email or club card (no code is sent)', async () => {
+  await kiosk.step('WALLET: "PAY FROM YOUR WALLET" emails a code to the account of the mobile (build New15)', async () => {
     await kiosk.tap('WALLET', { settleMs: 800 });
     await kiosk.tap('Proceed', { settleMs: 2500 });
     await kiosk.waitForText('PAY FROM YOUR WALLET');
     expect(await kiosk.hasText(`KWD ${total.toFixed(3)}`), 'Amount to be paid').toBe(true);
-    expect(await kiosk.hasText('Enter your mobile number, email or club card number. We will email you a code.')).toBe(true);
-    for (const tab of ['Mobile', 'Email', 'Club card', 'SEND CODE']) expect.soft(await kiosk.hasButton(tab), tab).toBe(true);
+    await kiosk.waitForText('Enter the code');
+    expect(await kiosk.hasText(WALLET_CODE_SENT)).toBe(true);
+    for (const button of ['CONFIRM', 'Use another mobile, email or card']) expect.soft(await kiosk.hasButton(button), button).toBe(true);
   });
 
   await kiosk.step('Cancel out: the kiosk cancels the reservation', async () => {

@@ -1,7 +1,7 @@
 // Booking steps shared by several tests. None of them goes past "Preview and Checkout":
 // no mobile number, no sign-in and no payment.
 import { expect } from '@playwright/test';
-import type { Kiosk } from './kiosk';
+import type { Kiosk, Seat } from './kiosk';
 import { pickShow, showsFromCalls, type Show } from './programme';
 
 /** "KWD 3.500" → 3.5 */
@@ -23,16 +23,22 @@ export async function openUpcomingShow(kiosk: Kiosk, options?: Parameters<typeof
   const programme = showsFromCalls(kiosk.apiCalls());
   const show = (await kiosk.step('Open BUY TICKETS (films showing now)', async () => {
     await kiosk.tap('BUY TICKETS', { settleMs: 1500 });
-    const onScreen = new Set((await kiosk.visibleTexts()).map((t) => t.name));
-    return pickShow(programme.filter((s) => onScreen.has(s.film)), { experience: 'Standard', ...options });
+    // The film titles can still be loading: read the screen again a few times before giving up.
+    for (let attempt = 1; ; attempt++) {
+      const onScreen = new Set((await kiosk.visibleTexts()).map((t) => t.name));
+      try {
+        return pickShow(programme.filter((s) => onScreen.has(s.film)), { experience: 'Standard', ...options });
+      } catch (e) {
+        if (attempt === 4) throw e;
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+    }
   }))!;
   await kiosk.step(`Choose "${show.film}"`, async () => {
-    await kiosk.tap(show.film, { settleMs: 1500 });
-    await kiosk.waitForText(show.time);
+    await kiosk.tapUntil(show.film, show.time, { settleMs: 1500 });
   });
   await kiosk.step(`Choose the ${show.time} ${show.experience} show`, async () => {
-    await kiosk.tap(show.time, { settleMs: 2500 });
-    await kiosk.waitForText(SEAT_CATEGORY);
+    await kiosk.tapUntil(show.time, SEAT_CATEGORY, { settleMs: 2500 });
   });
   return show;
 }
@@ -40,17 +46,32 @@ export async function openUpcomingShow(kiosk: Kiosk, options?: Parameters<typeof
 /** Heading of the first choice after a show time (build New14; "Select Seat Type" before). */
 export const SEAT_CATEGORY = 'SELECT SEAT CATEGORY';
 
+/** Heading of the food screen after the seat map (build New15; "Select Food" before). */
+export const FOOD_SCREEN = 'SELECT FOOD';
+
+/** Label of the food menu's add buttons (build New15; "ADD" before). */
+export const FOOD_ADD = 'Add';
+
+/** Button that confirms the item sheet (build New15; the sheet had its own ADD before). */
+export const SHEET_DONE = 'Done';
+
 /** Seat categories offered for the show, e.g. ["Family", "General"] (each is a tile with an icon and a name). */
 export async function seatCategories(kiosk: Kiosk): Promise<string[]> {
   const xml = await kiosk.app.getPageSource();
   const names: string[] = [];
-  // Each category is a DataItem "...CategoryChoice" holding a Text with AutomationId "Name".
-  for (const block of xml.split('Screens.CategoryChoice').slice(1)) {
-    const name = block.match(/<Text\b[^>]*AutomationId="Name"[^>]*Name="([^"]*)"/)?.[1]
-      ?? block.match(/<Text\b[^>]*Name="([^"]*)"[^>]*AutomationId="Name"/)?.[1];
-    if (name) names.push(name);
+  const blocks = xml.split(/(?:Screens\.)?CategoryChoice/g);
+  const parseNames = (source: string) => {
+    const matches = [...source.matchAll(/<Text\b[^>]*?(?:AutomationId="Name"[^>]*Name="([^"]*)"|Name="([^"]*)"[^>]*AutomationId="Name")/g)]
+      .map(([, first, second]) => first ?? second ?? '')
+      .filter(Boolean);
+    for (const name of matches) names.push(name);
+  };
+  if (blocks.length > 1) {
+    for (const block of blocks.slice(1)) parseNames(block);
+  } else {
+    parseNames(xml);
   }
-  return names;
+  return [...new Set(names)];
 }
 
 /** Taps a seat category; the seat types of that category then appear under "SELECT SEAT TYPE". */
@@ -66,15 +87,20 @@ export async function chooseCategory(kiosk: Kiosk, category: string) {
 export async function seatAreas(kiosk: Kiosk) {
   const texts = await kiosk.texts();
   const areas: { name: string; available: number; price: number }[] = [];
-  texts.forEach((t, i) => {
+  for (let i = 0; i < texts.length - 2; i++) {
+    const name = texts[i];
     const seats = texts[i + 1]?.match(/^(\d+) Available$/);
     const price = texts[i + 2]?.match(/^KWD ([\d.]+)$/);
-    if (seats && price) areas.push({ name: t, available: Number(seats[1]), price: Number(price[1]) });
-  });
+    if (!name || !seats || !price) continue;
+    // The seat-type name is the label itself, not the count or the unit price.
+    if (/^\d+ Available$/.test(name) || /^KWD [\d.]+$/.test(name)) continue;
+    areas.push({ name, available: Number(seats[1]), price: Number(price[1]) });
+    i += 2;
+  }
   return areas;
 }
 
-/** The order total on the cart button at the bottom left of "Select Food" (build New14), e.g. "KWD 3.500". */
+/** The order total on the cart button at the bottom left of "SELECT FOOD", e.g. "KWD 3.500". */
 export async function cartTotal(kiosk: Kiosk) {
   // Menu prices sit next to their ADD buttons; the cart total is the only KWD text inside a button.
   const el = kiosk.app.$('//Button//Text[starts-with(@Name, "KWD ")]');
@@ -95,8 +121,7 @@ export async function chooseSeatsType(kiosk: Kiosk, category: string, quantity: 
     if (!area) throw new Error(`No seat type is offered under ${category}`);
     await kiosk.tap(area.name, { settleMs: 800 });
     for (let i = 1; i < quantity; i++) await kiosk.tapQuantity('+');
-    await kiosk.tap('Proceed', { settleMs: 2500 });
-    await kiosk.waitForText('Select Seat');
+    await kiosk.tapUntil('Proceed', 'Select Seat', { settleMs: 2500 });
   });
 }
 
@@ -105,8 +130,9 @@ export async function chooseSeatsType(kiosk: Kiosk, category: string, quantity: 
  * "no single empty seat" rule never blocks them. Returns labels like ["K27", "K26"].
  */
 export async function pickFreeSeats(kiosk: Kiosk, count: number): Promise<string[]> {
-  const states = await kiosk.seatStates();
+  // One read of the map for both the seats and their colours (every read of a big map takes seconds on build New15).
   const seats = await kiosk.seats();
+  const states = await kiosk.seatStates(seats);
   const rows = [...new Set(seats.map((s) => s.row))];
   for (const row of rows.reverse()) {
     const inRow = seats.filter((s) => s.row === row).sort((a, b) => a.x - b.x);
@@ -120,33 +146,46 @@ export async function pickFreeSeats(kiosk: Kiosk, count: number): Promise<string
       else { if (run.length) runs.push(run); run = free ? [s] : []; }
     });
     if (run.length) runs.push(run);
-    const block = runs.find((r) => r.length === count || r.length >= count + 2);
-    if (block) {
+    // On build New15 a seat read as free now and then does not take a tap (it was still being drawn): then the
+    // seats taken from that block are released and the next block is tried.
+    for (const block of runs.filter((r) => r.length === count || r.length >= count + 2)) {
       const chosen = block.slice(0, count).map((s) => `${s.row}${s.number}`);
-      for (const label of chosen) await selectSeat(kiosk, label);
-      return chosen;
+      const taken: string[] = [];
+      try {
+        for (const seat of block.slice(0, count)) { await selectSeat(kiosk, `${seat.row}${seat.number}`, seat); taken.push(`${seat.row}${seat.number}`); }
+        return chosen;
+      } catch {
+        for (const label of taken) await kiosk.tapSeat(label);
+      }
     }
   }
   throw new Error(`No block of ${count} free seat(s) found on the seat map`);
 }
 
 /**
- * Taps a seat and waits until it shows in the selection bar. The seat map redraws after every
- * selection and a tap during the redraw is lost, so it taps once more if the seat does not appear.
+ * Taps a seat and waits until it turns red. The seat map redraws after every selection and a tap during the redraw
+ * is lost, so it taps once more if the seat does not turn red. With the seat's place known (`seat`), the colour is
+ * read from screenshots (fast); otherwise it waits for the label in the selection.
  */
-export async function selectSeat(kiosk: Kiosk, label: string) {
-  const seat = () => kiosk.seat(label.slice(0, 1), label.slice(1));
+export async function selectSeat(kiosk: Kiosk, label: string, seat?: Seat) {
   for (let attempt = 1; attempt <= 2; attempt++) {
-    await seat().click();
-    try {
-      await kiosk.waitForText(label, 5_000);
+    await kiosk.tapSeat(label);
+    let selected = false;
+    if (seat) {
+      for (let i = 0; i < 10 && !selected; i++) {
+        await new Promise((r) => setTimeout(r, 500));
+        selected = (await kiosk.seatColours([seat])).get(label) === 'selected';
+      }
+    } else {
+      selected = await kiosk.waitForText(label, 5_000).then(() => true, () => false);
+    }
+    if (selected) {
       // Let the map finish redrawing before the next tap.
       await new Promise((r) => setTimeout(r, 1_000));
       return;
-    } catch {
-      if (attempt === 2) throw new Error(`Seat ${label} was tapped twice but did not appear in the selection`);
     }
   }
+  throw new Error(`Seat ${label} was tapped twice but was not selected`);
 }
 
 /** Checks the kiosk reserved the seats (content/trans/reserveseats) and returns the reservation. */
@@ -162,19 +201,19 @@ export async function expectReservation(kiosk: Kiosk, since: number, seats: stri
 /** The cheapest item on the menu, used by the paying food tests to keep the club card spending low. */
 export const CHEAP_FOOD = { tab: 'Beverages', name: 'Aquafina Water UAT', price: 0.5 };
 
-/** On "Select Food": opens the item's tab, taps its ADD button and confirms the item sheet (no options chosen). */
+/** On "SELECT FOOD": opens the item's tab, taps its Add button and confirms the item sheet (no options chosen). */
 export async function addFood(kiosk: Kiosk, item = CHEAP_FOOD) {
   await kiosk.tap(item.tab, { settleMs: 1500 });
   // Each menu row (build New14) is a DataItem "...FoodItemView" holding its ADD button, image, name and price.
   const before = await cartTotal(kiosk);
-  const row = () => kiosk.app.$(`//DataItem[@Name="Cinescape.Kiosk.Presentation.Screens.FoodItemView"][.//Text[@Name="${item.name}"]]//Button[@Name="ADD"]`);
+  const row = () => kiosk.app.$(`//DataItem[@Name="Cinescape.Kiosk.Presentation.Screens.FoodItemView"][.//Text[@Name="${item.name}"]]//Button[@Name="${FOOD_ADD}"]`);
   // A tap while the tab is still loading is lost, so wait for the item sheet (or the total to change) and tap once more if needed.
   for (let attempt = 1; attempt <= 2; attempt++) {
     await row().click();
     for (let i = 0; i < 10; i++) {
       await new Promise((r) => setTimeout(r, 500));
       // Build New14 opens a sheet for every item (here an optional "Temperature" choice); it repeats the item's
-      // name as its title, so the name shows twice while it is open. Confirm it with its ADD.
+      // name as its title, so the name shows twice while it is open. Confirm it with Done.
       if ((await kiosk.texts()).filter((t) => t === item.name).length > 1) {
         await addFromSheet(kiosk);
         return;
@@ -185,17 +224,13 @@ export async function addFood(kiosk: Kiosk, item = CHEAP_FOOD) {
   throw new Error(`Tapping ADD for "${item.name}" did not add it (tapped twice)`);
 }
 
-/**
- * Taps ADD on the open item sheet. It is the widest ADD on the screen (137 px against 94 px for the menu rows'
- * ADD buttons behind the sheet; rows scrolled out of view can even sit below it, so position does not tell).
- */
+/** True when the food line "Aquafina Water UAT  × 1" (build New15; "1 x Aquafina Water UAT" before) is on the screen. */
+export async function hasFoodLine(kiosk: Kiosk, name: string, quantity = 1) {
+  const line = new RegExp(`^\\s+×\\s*${quantity}$`);
+  return (await kiosk.texts()).some((t) => t === `${quantity} x ${name}` || (t.startsWith(name) && line.test(t.slice(name.length))));
+}
+
+/** Confirms the open item sheet with its Done button (build New15). */
 export async function addFromSheet(kiosk: Kiosk) {
-  let widest: { click(): Promise<unknown> } | undefined;
-  let widestW = -1;
-  for (const add of await kiosk.buttons('ADD')) {
-    const { width } = await add.getSize();
-    if (width > widestW) [widest, widestW] = [add, width];
-  }
-  await widest!.click();
-  await new Promise((r) => setTimeout(r, 1500));
+  await kiosk.tap(SHEET_DONE, { settleMs: 1500 });
 }

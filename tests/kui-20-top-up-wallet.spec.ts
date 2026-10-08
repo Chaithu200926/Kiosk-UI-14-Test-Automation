@@ -4,7 +4,7 @@
 // black it out and the video is paused while it is typed.
 import { test, expect } from '../src/fixtures';
 import { kwd } from '../src/flows';
-import { identifyByCode, skipUnlessWalletCode, tapPay } from '../src/payment';
+import { identifyByCode, skipUnlessWalletCode, tapPay, TOP_UP_HEADING } from '../src/payment';
 
 skipUnlessWalletCode();
 
@@ -13,9 +13,9 @@ const AMOUNT = 10;
 test('KUI-20 Top up the club card with KWD 10 by KNET', async ({ kiosk }) => {
   test.setTimeout(8 * 60_000);
 
-  await kiosk.step('TOP UP: "TOP UP YOUR CLUB CARD" asks who the customer is', async () => {
+  await kiosk.step(`TOP UP: "${TOP_UP_HEADING}" asks who the customer is`, async () => {
     await kiosk.tap('TOP UP', { settleMs: 2500 });
-    await kiosk.waitForText('TOP UP YOUR CLUB CARD');
+    await kiosk.waitForText(TOP_UP_HEADING);
   });
 
   await kiosk.video?.pause();
@@ -24,9 +24,9 @@ test('KUI-20 Top up the club card with KWD 10 by KNET', async ({ kiosk }) => {
 
   await kiosk.step('The card and its balance are shown, with the amounts to choose (clubcard/getamounts)', async () => {
     await kiosk.waitForText(`Balance KWD ${before.balance.toFixed(3)}`);
-    expect(await kiosk.hasText(`Club card ${before.maskedCard}`), 'Masked club card').toBe(true);
+    expect(await kiosk.hasText(`Wallet ${before.maskedCard}`), 'Masked wallet number').toBe(true);
     expect(await kiosk.hasTextContaining('Hello, '), 'Greeting').toBe(true);
-    expect(await kiosk.hasText('Choose an amount. You pay by KNET, and the amount is added to your club card.')).toBe(true);
+    expect(await kiosk.hasText('Choose an amount. You pay by KNET, and the amount is added to your wallet.')).toBe(true);
     const amounts = await kiosk.waitForApiCall('clubcard/getamounts');
     const offered = (amounts.responseBody as { output: { amounts: { amount: number }[] } }).output.amounts.map((a) => a.amount);
     expect(offered, 'Amounts offered').toContain(AMOUNT);
@@ -36,13 +36,14 @@ test('KUI-20 Top up the club card with KWD 10 by KNET', async ({ kiosk }) => {
 
   const since = Date.now();
   await kiosk.step(`Choose KWD ${AMOUNT} and PAY by KNET (the fake terminal approves)`, async () => {
-    await kiosk.tap(`KWD ${AMOUNT}`, { settleMs: 800 });
-    // The button then reads "PAY KWD 10.000".
+    // The button then reads "PAY KWD 10.000". On 8 Oct 2026 two taps in a row were lost, so up to three quick tries
+    // (5 s each), well before "Are you still there?" (~30 s).
+    await kiosk.tapUntil(`KWD ${AMOUNT}`, `PAY KWD ${AMOUNT.toFixed(3)}`, { settleMs: 800, timeout: 5_000, attempts: 3 });
     await tapPay(kiosk, AMOUNT);
   });
 
   await kiosk.step(`"KWD ${AMOUNT} was added to your club card."`, async () => {
-    await expect.poll(() => kiosk.hasTextContaining('was added to your club card.'), { message: 'Top-up confirmed on screen', timeout: 90_000 }).toBe(true);
+    await expect.poll(() => kiosk.hasTextContaining('was added to your'), { message: 'Top-up confirmed on screen', timeout: 90_000 }).toBe(true);
     expect.soft(await kiosk.hasText('The new balance can take a few minutes to show in the app.'), 'Balance note').toBe(true);
     // Record what the top-up called (the KNET payment and the club card recharge), for the report.
     const calls = kiosk.apiCalls().filter((c) => c.time >= since && !c.path.startsWith('content/kioskLogs'));

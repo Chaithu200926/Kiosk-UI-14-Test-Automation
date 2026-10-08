@@ -1,6 +1,6 @@
 # CinescapeKiosk UI Automation
 
-End-to-end UI tests for the **CinescapeKiosk** Windows app (WPF, build `CinescapeKioskNew14`) against the UAT API.
+End-to-end UI tests for the **CinescapeKiosk** Windows app (WPF, build `CinescapeKisokNew15`) against the UAT API.
 The kiosk is driven with [Appium](https://appium.io) and its **NovaWindows** driver (Windows UI Automation);
 [Playwright Test](https://playwright.dev) is the test runner and report, the same as the web and API projects.
 
@@ -56,7 +56,7 @@ The full list of 23 approved test cases and their status is in `C:\softwares\KNC
 
 - Windows 10/11, **logged in and unlocked** while tests run (the kiosk opens full screen; Windows blocks
   screenshots and taps while the PC is locked).
-- The kiosk app at `C:\ProgramData\KNCC\CinescapeKioskNew14\CinescapeKiosk.exe` (or set `KIOSK_APP_PATH`),
+- The kiosk app at `C:\ProgramData\KNCC\CinescapeKisokNew15\CinescapeKiosk.exe` (or set `KIOSK_APP_PATH`),
   with `UseFakeTerminal` and `UseFakePrinter` set to `true` in its `kiosk.settings.json`. The app reads that file
   from its own folder, and a new build's folder has none: copy it over from the previous build.
   Logs, the paper counter and other state stay in `C:\ProgramData\KNCC\CinescapeKioskNew` for every build.

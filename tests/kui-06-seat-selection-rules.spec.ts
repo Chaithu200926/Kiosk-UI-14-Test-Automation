@@ -22,7 +22,7 @@ test('KUI-06 Seat selection: unavailable seats are blocked and Proceed needs eve
       test.info().annotations.push({ type: 'note', description: 'No unavailable seat on this seat map; check skipped.' });
       return;
     }
-    await kiosk.seat(blocked.slice(0, 1), blocked.slice(1)).click();
+    await kiosk.tapSeat(blocked);
     await new Promise((r) => setTimeout(r, 1000));
     expect(await kiosk.hasText(blocked), `${blocked} is not in the selection`).toBe(false);
     expect((await kiosk.seatStates()).get(blocked), `${blocked} stays unavailable`).toBe('unavailable');
@@ -38,7 +38,7 @@ test('KUI-06 Seat selection: unavailable seats are blocked and Proceed needs eve
   });
 
   await kiosk.step(`Tap ${second} again: it is released and Proceed is disabled`, async () => {
-    await kiosk.seat(second.slice(0, 1), second.slice(1)).click();
+    await kiosk.tapSeat(second);
     await new Promise((r) => setTimeout(r, 1000));
     expect(await kiosk.hasText(second), `${second} left the selection`).toBe(false);
     expect(await kiosk.isEnabled('Proceed'), 'Proceed with one seat missing').toBe(false);

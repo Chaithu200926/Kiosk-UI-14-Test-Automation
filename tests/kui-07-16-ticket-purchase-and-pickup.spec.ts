@@ -3,7 +3,7 @@
 // The two run in order in one file, so the pickup test reuses KUI-07's booking instead of buying another.
 // Creates one paid UAT booking (about KWD 3.500) per run; the BOOKING ID is recorded as a "paid booking" note.
 import { test, expect } from '../src/fixtures';
-import { chooseSeatsType, kwd, openUpcomingShow, pickFreeSeats } from '../src/flows';
+import { chooseSeatsType, kwd, openUpcomingShow, pickFreeSeats, FOOD_SCREEN } from '../src/flows';
 import { expectReturnsHome, payByKnet, successDetails } from '../src/payment';
 
 test.describe.configure({ mode: 'serial' });
@@ -19,7 +19,7 @@ test('KUI-07 Ticket purchase end to end, paid by KNET', async ({ kiosk }) => {
   const [seat] = (await kiosk.step('Choose a free seat and proceed', async () => {
     const seats = await pickFreeSeats(kiosk, 1);
     await kiosk.tap('Proceed', { settleMs: 2500 });
-    await kiosk.waitForText('Select Food');
+    await kiosk.waitForText(FOOD_SCREEN);
     return seats;
   }))!;
 

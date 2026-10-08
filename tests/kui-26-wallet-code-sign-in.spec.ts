@@ -3,26 +3,26 @@
 // or card" goes back. No money is moved. Each run emails a code to the test customer (it is never used).
 // The club card number is private (public report): screenshots black it out and the video is paused.
 import { test, expect } from '../src/fixtures';
-import { sendCode } from '../src/payment';
+import { sendCode, TOP_UP_HEADING, WALLET_PROMPT, WALLET_TAB } from '../src/payment';
 
 const WRONG_CODE = '000000';
 
 test('KUI-26 Wallet code: SEND CODE emails a code, a wrong code is refused', async ({ kiosk, config }) => {
   if (!config.customer.clubCard) throw new Error('Set KIOSK_TEST_CLUB_CARD in .env');
 
-  await kiosk.step('TOP UP: "TOP UP YOUR CLUB CARD" asks for the mobile, email or club card', async () => {
+  await kiosk.step(`TOP UP: "${TOP_UP_HEADING}" asks for the mobile, email or wallet number`, async () => {
     await kiosk.tap('TOP UP', { settleMs: 2500 });
-    await kiosk.waitForText('TOP UP YOUR CLUB CARD');
-    expect(await kiosk.hasText('Enter your mobile number, email or club card number. We will email you a code.')).toBe(true);
-    for (const tab of ['Mobile', 'Email', 'Club card']) expect.soft(await kiosk.hasButton(tab), `${tab} tab`).toBe(true);
+    await kiosk.waitForText(TOP_UP_HEADING);
+    expect(await kiosk.hasText(WALLET_PROMPT)).toBe(true);
+    for (const tab of ['Mobile', 'Email', WALLET_TAB]) expect.soft(await kiosk.hasButton(tab), `${tab} tab`).toBe(true);
     expect.soft(await kiosk.hasTextContaining('+965'), 'Mobile tab starts with +965').toBe(true);
   });
 
   kiosk.privateOnScreen = true;
   await kiosk.video?.pause();
   const since = Date.now();
-  await kiosk.step('Club card: type the card number and SEND CODE', async () => {
-    await kiosk.tap('Club card', { settleMs: 1000 });
+  await kiosk.step('Wallet: type the card number and SEND CODE', async () => {
+    await kiosk.tap(WALLET_TAB, { settleMs: 1000 });
     await kiosk.typeDigits(config.customer.clubCard);
     // TOP UP uses kiosk/identity/topup/start; sendCode() asks again if UAT says "Too many attempts".
     const start = await sendCode(kiosk, since);

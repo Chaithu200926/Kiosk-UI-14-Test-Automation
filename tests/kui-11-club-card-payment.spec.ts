@@ -3,7 +3,7 @@
 // payment (clubcard/kiosk/pay). It asks for one code only: UAT refuses more than a few code requests in a short time
 // ("Too many attempts"). Spends KWD 0.500 of the test club card per run; recorded as a "paid booking" note.
 import { test, expect } from '../src/fixtures';
-import { addFood, CHEAP_FOOD } from '../src/flows';
+import { addFood, CHEAP_FOOD, FOOD_SCREEN } from '../src/flows';
 import { payByWallet, skipUnlessWalletCode, successDetails } from '../src/payment';
 
 // Skipped (before the kiosk starts) unless the wallet code is set (KIOSK_WALLET_CODE, 111111 on UAT).
@@ -14,7 +14,7 @@ test('KUI-11 Wallet payment: balance, order total and balance after; paid from t
 
   await kiosk.step(`ORDER F&B: order "${CHEAP_FOOD.name}" and go to checkout`, async () => {
     await kiosk.tap('ORDER F&B', { settleMs: 2500 });
-    await kiosk.waitForText('Select Food');
+    await kiosk.waitForText(FOOD_SCREEN);
     await addFood(kiosk);
     await kiosk.tap('Proceed', { settleMs: 2500 });
     await kiosk.waitForText('Preview and Checkout');

@@ -1,6 +1,6 @@
 // KUI-14: seats the kiosk reserved are released again when the customer cancels.
 import { test, expect } from '../src/fixtures';
-import { chooseSeatsType, expectReservation, openUpcomingShow, pickFreeSeats, SEAT_CATEGORY } from '../src/flows';
+import { chooseSeatsType, expectReservation, openUpcomingShow, pickFreeSeats, SEAT_CATEGORY, FOOD_SCREEN } from '../src/flows';
 
 test('KUI-14 Cancel during booking releases the reserved seats', async ({ kiosk }) => {
   const show = await openUpcomingShow(kiosk);
@@ -10,7 +10,7 @@ test('KUI-14 Cancel during booking releases the reserved seats', async ({ kiosk 
   const [seat] = (await kiosk.step('Choose a free seat and proceed (the kiosk reserves it)', async () => {
     const seats = await pickFreeSeats(kiosk, 1);
     await kiosk.tap('Proceed', { settleMs: 2500 });
-    await kiosk.waitForText('Select Food');
+    await kiosk.waitForText(FOOD_SCREEN);
     return seats;
   }))!;
 

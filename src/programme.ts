@@ -29,7 +29,9 @@ export function showsFromCalls(calls: RecordedCall[]): Show[] {
   return daySessions.flatMap((day) => day.experienceSessions.flatMap((exp) => exp.shows
     .filter((s) => s.soldoutStatus === 0 && s.allowTicketSales === 'true')
     .map((s) => ({ film: day.movie.title, experience: exp.experience, time: s.showTime, startsAt: new Date(s.showtime), seatsAvailable: s.seatsAvailable,
-      rating: day.movie.rating ?? '', ageNotice: Boolean(day.movie.ratingDescription) }))));
+      rating: day.movie.rating ?? '',
+      // Build New15 shows the 18+ notice for R18 films even when UAT sends no rating description.
+      ageNotice: Boolean(day.movie.ratingDescription) || /18/.test(day.movie.rating ?? '') }))));
 }
 
 /**
@@ -44,7 +46,9 @@ export function pickShow(shows: Show[], options: { minutesAhead?: number; minSea
     .filter((s) => s.startsAt.getTime() >= earliest && s.seatsAvailable >= (options.minSeats ?? 10))
     .filter((s) => !options.experience || s.experience === options.experience)
     .filter((s) => options.allowAgeNotice || !s.ageNotice)
-    .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())[0];
+    // Smaller halls first (up to 200 free seats), then the earliest: on build New15 every search on a big seat map
+    // (250+ seats) takes seconds, enough for "Are you still there?" to cover the map.
+    .sort((a, b) => Number(a.seatsAvailable > 200) - Number(b.seatsAvailable > 200) || a.startsAt.getTime() - b.startsAt.getTime())[0];
   if (!show) throw new Error('No show later today with free seats. The kiosk only sells today\'s shows; run the test earlier in the day.');
   return show;
 }

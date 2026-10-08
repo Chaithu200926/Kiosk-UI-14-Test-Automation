@@ -6,7 +6,7 @@ import dotenv from 'dotenv';
 dotenv.config({ path: path.resolve(__dirname, '..', '.env'), quiet: true });
 
 const localAppData = process.env.LOCALAPPDATA ?? path.join(os.homedir(), 'AppData', 'Local');
-const appPath = process.env.KIOSK_APP_PATH || 'C:\\ProgramData\\KNCC\\CinescapeKioskNew14\\CinescapeKiosk.exe';
+const appPath = process.env.KIOSK_APP_PATH || 'C:\\ProgramData\\KNCC\\CinescapeKisokNew15\\CinescapeKiosk.exe';
 
 export const config = {
   /* The kiosk program the tests start, and the settings file it reads (for the API address and key). */

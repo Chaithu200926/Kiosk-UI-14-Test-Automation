@@ -1,7 +1,7 @@
 // KUI-15: a kiosk left untouched first asks "Are you still there?", then returns to the home screen, and seats held
 // by an abandoned booking are released. (The prompt is new in build New14.)
 import { test, expect } from '../src/fixtures';
-import { chooseSeatsType, expectReservation, openUpcomingShow, pickFreeSeats } from '../src/flows';
+import { chooseSeatsType, expectReservation, openUpcomingShow, pickFreeSeats, FOOD_SCREEN } from '../src/flows';
 import type { Kiosk } from '../src/kiosk';
 
 const PROMPT = 'Are you still there?';
@@ -60,7 +60,7 @@ test('KUI-15 Idle timeout: the kiosk returns home and releases held seats', asyn
   const [seat] = (await kiosk.step('Choose a free seat and proceed (the kiosk reserves it), then leave the kiosk', async () => {
     const seats = await pickFreeSeats(kiosk, 1);
     await kiosk.tap('Proceed', { settleMs: 2500 });
-    await kiosk.waitForText('Select Food');
+    await kiosk.waitForText(FOOD_SCREEN);
     return seats;
   }))!;
   const reservation = await expectReservation(kiosk, since, [seat]);

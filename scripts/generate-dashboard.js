@@ -19,7 +19,7 @@ const assetDir = path.join(outputDir, 'assets');
 const historyPath = process.env.HISTORY_FILE || path.join(outputDir, 'history.json');
 const HISTORY_LIMIT = 30;
 // Kiosk build under test = the app's folder name (same default as src/config.ts).
-const appPath = process.env.KIOSK_APP_PATH || 'C:\\ProgramData\\KNCC\\CinescapeKioskNew14\\CinescapeKiosk.exe';
+const appPath = process.env.KIOSK_APP_PATH || 'C:\\ProgramData\\KNCC\\CinescapeKisokNew15\\CinescapeKiosk.exe';
 const build = path.win32.basename(path.win32.dirname(appPath));
 
 // Stop early if the tests have not been run yet.

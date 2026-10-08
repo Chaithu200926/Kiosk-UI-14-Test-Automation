@@ -10,6 +10,7 @@ import type { ScreenArea, ScreenVideo } from './video';
 
 export type KioskSession = Awaited<ReturnType<typeof remote>>;
 export type SeatState = 'available' | 'unavailable' | 'selected';
+export type Seat = { row: string; number: string; x: number; y: number; width: number; height: number };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 /** The big home button (build New14; it was NOW SHOWING before). Its text marks the home screen. */
@@ -34,14 +35,15 @@ export class Kiosk {
   // ---------- finding things ----------
 
   /**
-   * All buttons with this label: first those whose inner text is the label (most kiosk buttons),
-   * otherwise those whose own name is the label. (The driver's XPath has no "or" / grouping support.)
+   * All buttons with this label: first those whose own name is the label (most kiosk buttons; the quickest search),
+   * otherwise those whose inner text is the label. (The driver's XPath has no "or" / grouping support.)
+   * On a big seat map (build New15) a search that looks inside every button takes many seconds.
    */
   async buttons(label: string) {
-    const byText = await this.app.$$(`//Button[.//Text[@Name=${lit(label)}]]`).getElements();
-    if (byText.length) return byText;
     const byName = await this.app.$$(`//Button[@Name=${lit(label)}]`).getElements();
     if (byName.length) return byName;
+    const byText = await this.app.$$(`//Button[.//Text[@Name=${lit(label)}]]`).getElements();
+    if (byText.length) return byText;
     // Build New14 home tiles are list items named "HomeTile { Key = topup, Text = TOP UP, ... }"; their inner
     // button and text are not always exposed to UI Automation, so the tile itself is tapped then.
     return this.app.$$(`//DataItem[contains(@Name, ${lit(`Text = ${label},`)})]`).getElements();
@@ -107,6 +109,24 @@ export class Kiosk {
 
   // ---------- acting ----------
 
+  /**
+   * Taps the button with this label until `text` appears. Build New15 loses a tap now and then (the screen does not
+   * change), so it taps again (up to `attempts` taps in all) when the text has not appeared after `timeout`.
+   */
+  async tapUntil(label: string, text: string, options: { timeout?: number; settleMs?: number; attempts?: number } = {}) {
+    const timeout = options.timeout ?? 12_000;
+    const attempts = options.attempts ?? 2;
+    await this.tap(label, { settleMs: options.settleMs });
+    for (let attempt = 2; ; attempt++) {
+      try {
+        return await this.waitForText(text, timeout);
+      } catch (e) {
+        if (attempt > attempts) throw e;
+        if (await this.hasButton(label)) await this.tap(label, { settleMs: options.settleMs });
+      }
+    }
+  }
+
   /** Taps the button with this label and gives the screen a moment to change. */
   async tap(label: string, options: { nth?: number; timeout?: number; settleMs?: number } = {}) {
     const el = await this.button(label, options.nth, options.timeout);
@@ -115,18 +135,21 @@ export class Kiosk {
   }
 
   /**
-   * Taps − or + next to "Ticket Quantity". On build New14 they are icon buttons without a name: + is the
-   * right-most unnamed button in that row, − (shown once the quantity is above 1) the left-most.
+   * Taps − or + next to "Ticket Quantity". On build New14 they are icon buttons without a name; keep the
+   * selection tied to the quantity row instead of guessing by the count of empty-name buttons on the page.
    */
   async tapQuantity(sign: '+' | '−') {
     const row = await this.text('Ticket Quantity').getLocation();
     const inRow: { el: { click(): Promise<unknown> }; x: number }[] = [];
     for (const el of await this.app.$$('//Button[@Name=""]').getElements()) {
       const [pos, size] = [await el.getLocation(), await el.getSize()];
-      if (Math.abs(pos.y + size.height / 2 - (row.y + 10)) < 30 && pos.x > row.x + 150) inRow.push({ el, x: pos.x });
+      const centerY = pos.y + size.height / 2;
+      const centerX = pos.x + size.width / 2;
+      if (Math.abs(centerY - (row.y + 10)) < 30 && centerX > row.x + 100) inRow.push({ el, x: centerX });
     }
+    if (!inRow.length) throw new Error(`The ${sign} button next to Ticket Quantity was not found`);
     inRow.sort((a, b) => a.x - b.x);
-    if (!inRow.length || (sign === '−' && inRow.length < 2)) throw new Error(`The ${sign} button next to Ticket Quantity was not found`);
+    if (sign === '−' && inRow.length < 2) throw new Error(`The ${sign} button next to Ticket Quantity was not found`);
     await (sign === '+' ? inRow[inRow.length - 1] : inRow[0]).el.click();
     await sleep(600);
   }
@@ -179,11 +202,45 @@ export class Kiosk {
     return this.app.$(`//DataItem[contains(@Name, ${lit(`Name = ${row},`)})]//Button[@AutomationId="Place"][.//Text[@Name=${lit(String(number))}]]`);
   }
 
-  /** Every seat on the map with its row, number and position on the screen. */
-  async seats(): Promise<{ row: string; number: string; x: number; y: number; width: number; height: number }[]> {
-    const xml = await this.app.getPageSource();
+  /**
+   * Taps a seat by its label, e.g. "K27". On build New15 every search on a big seat map takes seconds, and the kiosk
+   * asks "Are you still there?" after about half a minute untouched, so seat work keeps the searches few.
+   */
+  async tapSeat(label: string) {
+    const seat = this.seat(label.slice(0, 1), label.slice(1));
+    await seat.waitForExist({ timeout: 10_000, timeoutMsg: `Seat ${label} was not found on the seat map within 10 s` });
+    await seat.click();
+  }
+
+  /** Answers "Are you still there?" with YES, I'M HERE when it shows (checked by its text: the quickest search). */
+  async stillHere() {
+    if (!(await this.hasText('Are you still there?'))) return;
+    // The prompt can close between the check and the tap.
+    await this.tap("YES, I'M HERE", { timeout: 2_000, settleMs: 1000 }).catch(() => undefined);
+  }
+
+  /**
+   * Every seat on the map with its row, number and position on the screen. Build New15 draws the map after the
+   * "Select Seat" heading, so a read can find no seats yet: read again until it finds some.
+   */
+  async seats(timeout = 10_000): Promise<Seat[]> {
+    const deadline = Date.now() + timeout;
+    for (;;) {
+      const seats = await this.readSeats();
+      if (seats.length || Date.now() > deadline) return seats;
+      await sleep(500);
+    }
+  }
+
+  private async readSeats() {
+    let xml = await this.app.getPageSource();
+    // "Are you still there?" covers the map (found in the page already read, no extra search): answer it, read again.
+    if (xml.includes('Are you still there?')) {
+      await this.tap("YES, I'M HERE", { timeout: 2_000, settleMs: 1000 }).catch(() => undefined);
+      xml = await this.app.getPageSource();
+    }
     const attr = (tag: string, key: string) => (tag.match(new RegExp(`\\b${key}="([^"]*)"`)) || [])[1] ?? '';
-    const result: { row: string; number: string; x: number; y: number; width: number; height: number }[] = [];
+    const result: Seat[] = [];
     // Walk the tags in order: a row marker sets the current row; a seat button is followed by its number text.
     let row = '';
     let pending: { x: number; y: number; width: number; height: number } | undefined;
@@ -204,10 +261,26 @@ export class Kiosk {
    * Seat states from the screen colours (the kiosk exposes no state attribute):
    * white = available, dark grey = unavailable, red = selected.
    */
-  async seatStates(): Promise<Map<string, SeatState>> {
+  async seatStates(seats?: Seat[]): Promise<Map<string, SeatState>> {
+    // Seats first (or the ones just read): they wait for the map to be drawn, so the screenshot shows the whole map.
+    seats ??= await this.seats();
+    // Build New15 draws every seat white first and greys out the unavailable ones a moment later: read the colours
+    // until two screenshots in a row agree.
+    let last = '';
+    for (let attempt = 1; ; attempt++) {
+      const states = await this.seatColours(seats);
+      const key = [...states.values()].join();
+      if (key === last || attempt === 6) return states;
+      last = key;
+      await sleep(700);
+    }
+  }
+
+  /** Seat states from one screenshot (about 0.1 s, against seconds for any search on a big seat map). */
+  async seatColours(seats: Seat[]): Promise<Map<string, SeatState>> {
     const png = PNG.sync.read(Buffer.from(await this.app.takeScreenshot(), 'base64'));
     const states = new Map<string, SeatState>();
-    for (const s of await this.seats()) {
+    for (const s of seats) {
       // Sample the seat cushion, below the number label.
       const px = Math.round(s.x + s.width / 2);
       let [r, g, b] = [0, 0, 0];
@@ -289,10 +362,28 @@ export class Kiosk {
   }
 
   /** Presses Cancel / HOME until the home screen is back (used to leave a booking cleanly). */
+  /**
+   * Closes an open food item sheet with its ✕. On build New15 the ✕ is an unnamed icon button, the only small one
+   * in the right half of the screen (option tiles are over 100 px wide; − and + are named).
+   */
+  async closeSheet() {
+    const middle = this.area.x + this.area.width / 2;
+    for (const el of await this.app.$$('//Button[@Name=""]').getElements()) {
+      const [pos, size] = [await el.getLocation(), await el.getSize()];
+      if (size.width < 70 && size.height < 70 && pos.x > middle) {
+        await el.click();
+        await sleep(1500);
+        return;
+      }
+    }
+    throw new Error('The ✕ of the item sheet was not found');
+  }
+
   async backToHome(maxPresses = 8) {
     for (let i = 0; i < maxPresses; i++) {
       if (await this.hasText(HOME_MARKER) && await this.hasText('UPCOMING SHOWS')) return;
-      if (await this.hasButton('HOME')) await this.tap('HOME', { settleMs: 1500 });
+      if (await this.hasButton('Done')) await this.closeSheet();
+      else if (await this.hasButton('HOME')) await this.tap('HOME', { settleMs: 1500 });
       else if (await this.hasButton('Cancel')) await this.tap('Cancel', { settleMs: 1500 });
       else if (await this.hasButton('Back')) await this.tap('Back', { settleMs: 1500 });
       else break;

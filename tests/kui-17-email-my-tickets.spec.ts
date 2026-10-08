@@ -4,7 +4,7 @@
 // call plus the kiosk's message; whether the email arrives stays a manual check.
 // The address is private (public report): screenshots black it out and the video stays paused from checkout on.
 import { test, expect } from '../src/fixtures';
-import { chooseSeatsType, openUpcomingShow, pickFreeSeats } from '../src/flows';
+import { chooseSeatsType, openUpcomingShow, pickFreeSeats, FOOD_SCREEN } from '../src/flows';
 import { expectReturnsHome, payByWallet, successDetails } from '../src/payment';
 
 // On hold on request (4 Oct 2026): the email ticket scenario is parked, and it also needs a wallet payment.
@@ -27,7 +27,7 @@ test('KUI-17 Email my tickets after a purchase', async ({ kiosk, config }) => {
   await kiosk.step('Choose a free seat, SKIP food and go to "Preview and Checkout"', async () => {
     await pickFreeSeats(kiosk, 1);
     await kiosk.tap('Proceed', { settleMs: 2500 });
-    await kiosk.waitForText('Select Food');
+    await kiosk.waitForText(FOOD_SCREEN);
     await kiosk.tap('SKIP', { settleMs: 2500 });
     await kiosk.waitForText('Preview and Checkout');
   });

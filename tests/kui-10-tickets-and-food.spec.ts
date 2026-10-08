@@ -2,7 +2,7 @@
 // the seat and the food pickup number under one BOOKING ID. (The back-office check stays manual.)
 // Creates one paid UAT booking of about KWD 4.000 per run (ticket + cheapest item); recorded as a "paid booking" note.
 import { test, expect } from '../src/fixtures';
-import { addFood, cartTotal, CHEAP_FOOD, chooseSeatsType, kwd, openUpcomingShow, pickFreeSeats } from '../src/flows';
+import { addFood, cartTotal, CHEAP_FOOD, chooseSeatsType, kwd, openUpcomingShow, pickFreeSeats, FOOD_SCREEN, hasFoodLine } from '../src/flows';
 import { expectReturnsHome, payByKnet, successDetails } from '../src/payment';
 
 test('KUI-10 Tickets and food in one order, paid once by KNET', async ({ kiosk }) => {
@@ -13,7 +13,7 @@ test('KUI-10 Tickets and food in one order, paid once by KNET', async ({ kiosk }
   const [seat] = (await kiosk.step('Choose a free seat and proceed to "Select Food"', async () => {
     const seats = await pickFreeSeats(kiosk, 1);
     await kiosk.tap('Proceed', { settleMs: 2500 });
-    await kiosk.waitForText('Select Food');
+    await kiosk.waitForText(FOOD_SCREEN);
     return seats;
   }))!;
 
@@ -28,7 +28,7 @@ test('KUI-10 Tickets and food in one order, paid once by KNET', async ({ kiosk }
     await kiosk.tap('Proceed', { settleMs: 2500 });
     await kiosk.waitForText('Preview and Checkout');
     expect(await kiosk.hasText('Tickets    1'), 'Tickets line').toBe(true);
-    expect(await kiosk.hasText(`1 x ${CHEAP_FOOD.name}`), 'Food line').toBe(true);
+    expect(await hasFoodLine(kiosk, CHEAP_FOOD.name), 'Food line').toBe(true);
     const t = kwd(await kiosk.textStartingWith('Total '));
     expect(t, 'Total').toBeCloseTo(ticketTotal + CHEAP_FOOD.price, 3);
     return t;
