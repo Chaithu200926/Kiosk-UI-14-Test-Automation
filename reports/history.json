@@ -27,5 +27,41 @@
       "KUI-21 Printer out of paper: clear message, nothing printed": "skipped",
       "KUI-23 API unavailable: friendly messages, no crash, recovers when the API is back": "passed"
     }
+  },
+  {
+    "run": "local",
+    "at": "2026-10-08T07:30:35.177Z",
+    "commit": "3391ed0",
+    "url": "",
+    "total": 24,
+    "passed": 22,
+    "failed": 0,
+    "skipped": 2,
+    "tests": {
+      "KUI-01 App start: the home screen loads with all menu buttons": "passed",
+      "KUI-02 Language switch: Arabic translates and mirrors the screens, HOME returns to English": "passed",
+      "KUI-03 Films and show times match today's programme": "passed",
+      "KUI-04 Coming soon: films show opening dates and details, not on sale yet": "passed",
+      "KUI-05 Seat category, seat type and ticket quantity: total = price x quantity": "passed",
+      "KUI-06 Seat selection: unavailable seats are blocked and Proceed needs every seat": "passed",
+      "KUI-07 Ticket purchase end to end, paid by KNET": "passed",
+      "KUI-16 Pickup tickets by BOOKING ID; a second pickup is refused": "passed",
+      "KUI-08 Food purchase end to end, paid by KNET": "passed",
+      "KUI-09 Food combo options carry through to checkout": "passed",
+      "KUI-10 Tickets and food in one order, paid once by KNET": "passed",
+      "KUI-11 Wallet payment: balance, order total and balance after; paid from the club card": "passed",
+      "KUI-14 Cancel during booking releases the reserved seats": "passed",
+      "KUI-15 Idle timeout: the kiosk returns home and releases held seats": "passed",
+      "KUI-17 Email my tickets after a purchase": "skipped",
+      "KUI-20 Top up the club card with KWD 10 by KNET": "passed",
+      "KUI-21 Printer out of paper: clear message, nothing printed": "skipped",
+      "KUI-23 API unavailable: friendly messages, no crash, recovers when the API is back": "passed",
+      "KUI-24 Advance booking: films, details and show times; a show opens the seat category screen": "passed",
+      "KUI-25 Upcoming shows: the experience filter shows only that experience": "passed",
+      "KUI-26 Wallet code: SEND CODE emails a code, a wrong code is refused": "passed",
+      "KUI-27 Help button: staff are alerted and the customer is told to wait": "passed",
+      "KUI-28 Prepare food: the booking ID screen refuses an unknown booking": "passed",
+      "KUI-29 Checkout: country code picker and the payment methods": "passed"
+    }
   }
 ]

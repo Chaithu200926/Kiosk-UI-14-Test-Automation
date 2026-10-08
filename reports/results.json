@@ -1,10 +1,10 @@
 {
   "stats": {
-    "startTime": "2026-09-30T06:12:58.515Z",
-    "duration": 1464003.893,
-    "expected": 15,
-    "skipped": 1,
-    "unexpected": 1,
+    "startTime": "2026-10-08T07:30:35.177Z",
+    "duration": 2730870.591,
+    "expected": 22,
+    "skipped": 2,
+    "unexpected": 0,
     "flaky": 0
   }
 }
