@@ -78,8 +78,8 @@ export async function seatCategories(kiosk: Kiosk): Promise<string[]> {
 
 /** Taps a seat category; the seat types of that category then appear under "SELECT SEAT TYPE". */
 export async function chooseCategory(kiosk: Kiosk, category: string) {
-  await kiosk.tap(category, { settleMs: 1500 });
-  await kiosk.waitForText('SELECT SEAT TYPE');
+  // A lost tap leaves the screen on the category choice (build New15, 8 Oct 2026): tap again.
+  await kiosk.tapUntil(category, 'SELECT SEAT TYPE', { settleMs: 1500, timeout: 8_000, attempts: 3 });
 }
 
 /**
@@ -122,7 +122,14 @@ export async function chooseSeatsType(kiosk: Kiosk, category: string, quantity: 
     const [area] = (await seatAreas(kiosk)).sort((a, b) => b.available - a.available);
     if (!area) throw new Error(`No seat type is offered under ${category}`);
     await kiosk.tap(area.name, { settleMs: 800 });
-    for (let i = 1; i < quantity; i++) await kiosk.tapQuantity('+');
+    // Build New15 loses a + tap now and then (8 Oct 2026: KUI-06 went on with 1 ticket instead of 2), so the quantity
+    // is checked from the total (price x quantity) and corrected.
+    for (let tries = 0; ; tries++) {
+      const shown = Math.round((await totalTicketPrice(kiosk)) / area.price);
+      if (shown === quantity) break;
+      if (tries > quantity + 2) throw new Error(`Ticket quantity stays ${shown}, wanted ${quantity}`);
+      await kiosk.tapQuantity(shown < quantity ? '+' : '−');
+    }
     await kiosk.tapUntil('Proceed', 'Select Seat', { settleMs: 2500 });
   });
 }

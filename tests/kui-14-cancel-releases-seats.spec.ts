@@ -3,6 +3,8 @@ import { test, expect } from '../src/fixtures';
 import { chooseSeatsType, expectReservation, openUpcomingShow, pickFreeSeats, SEAT_CATEGORY, FOOD_SCREEN } from '../src/flows';
 
 test('KUI-14 Cancel during booking releases the reserved seats', async ({ kiosk }) => {
+  // Opens the seat map twice; on build New15 that and going back home afterwards passed the 5-minute limit (8 Oct 2026).
+  test.setTimeout(8 * 60_000);
   const show = await openUpcomingShow(kiosk);
   await chooseSeatsType(kiosk, 'General', 1);
 
