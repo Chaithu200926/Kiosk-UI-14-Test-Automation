@@ -114,6 +114,8 @@ export class Kiosk {
   /**
    * Taps the button with this label until `text` appears. Build New15 loses a tap now and then (the screen does not
    * change), so it taps again (up to `attempts` taps in all) when the text has not appeared after `timeout`.
+   * The taps after the first one click at the button's place on the screen: on 8 Oct 2026 three element clicks
+   * on "KWD 10" in a row never reached the kiosk (it did not even reset its idle timer).
    */
   async tapUntil(label: string, text: string, options: { timeout?: number; settleMs?: number; attempts?: number } = {}) {
     const timeout = options.timeout ?? 12_000;
@@ -124,15 +126,23 @@ export class Kiosk {
         return await this.waitForText(text, timeout);
       } catch (e) {
         if (attempt > attempts) throw e;
-        if (await this.hasButton(label)) await this.tap(label, { settleMs: options.settleMs });
+        if (await this.hasButton(label)) await this.tap(label, { settleMs: options.settleMs, atPlace: true });
       }
     }
   }
 
-  /** Taps the button with this label and gives the screen a moment to change. */
-  async tap(label: string, options: { nth?: number; timeout?: number; settleMs?: number } = {}) {
+  /**
+   * Taps the button with this label and gives the screen a moment to change. `atPlace` clicks the screen at the
+   * button's centre (a real mouse click) instead of the element click.
+   */
+  async tap(label: string, options: { nth?: number; timeout?: number; settleMs?: number; atPlace?: boolean } = {}) {
     const el = await this.button(label, options.nth, options.timeout);
-    await el.click();
+    if (options.atPlace) {
+      const [pos, size] = [await el.getLocation(), await el.getSize()];
+      await this.app.execute('windows: click', { x: Math.round(pos.x + size.width / 2), y: Math.round(pos.y + size.height / 2) });
+    } else {
+      await el.click();
+    }
     await sleep(options.settleMs ?? 800);
   }
 

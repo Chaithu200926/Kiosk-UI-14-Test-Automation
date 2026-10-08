@@ -28,8 +28,9 @@ test('KUI-08 Food purchase end to end, paid by KNET', async ({ kiosk }) => {
 
   await kiosk.step('"Booking Success!" shows the food pickup number, the item, the BOOKING ID and the amount', async () => {
     await kiosk.waitForText('Booking Success!', 30_000);
-    // The instructions follow the printing messages, so give them a moment.
-    await expect.soft.poll(() => kiosk.hasTextContaining('Your food is being prepared'), { message: 'Pickup instructions', timeout: 20_000 }).toBe(true);
+    // The instructions show only after the printing (food slip, then card receipt) has finished: on 8 Oct 2026 they
+    // came after more than 20 s, so give them 45 s.
+    await expect.soft.poll(() => kiosk.hasTextContaining('Your food is being prepared'), { message: 'Pickup instructions', timeout: 45_000 }).toBe(true);
     expect(await hasFoodLine(kiosk, CHEAP_FOOD.name), 'Item').toBe(true);
     const d = await successDetails(kiosk);
     expect(d.foodPickupNumber, 'FOOD PICKUP NO.').toMatch(/^\d+$/);

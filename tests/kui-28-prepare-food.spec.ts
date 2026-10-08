@@ -7,8 +7,8 @@ const UNKNOWN = 'WZZZZZ1';
 
 test('KUI-28 Prepare food: the booking ID screen refuses an unknown booking', async ({ kiosk }) => {
   await kiosk.step('Open PREPARE FOOD: "PREPARE YOUR FOOD" asks for the booking ID', async () => {
-    await kiosk.tap('PREPARE FOOD', { settleMs: 2500 });
-    await kiosk.waitForText('PREPARE YOUR FOOD');
+    // A lost tap leaves the home screen (8 Oct 2026, fresh start): tap again.
+    await kiosk.tapUntil('PREPARE FOOD', 'PREPARE YOUR FOOD', { settleMs: 2500 });
     expect(await kiosk.hasText('Enter the booking ID of your order. We will send your food to the kitchen.')).toBe(true);
     for (const key of ['CLEAR', '⌫', 'Proceed', 'Cancel']) expect.soft(await kiosk.hasButton(key), `${key} button`).toBe(true);
   });

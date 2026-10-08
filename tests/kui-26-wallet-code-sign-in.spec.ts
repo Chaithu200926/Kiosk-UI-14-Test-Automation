@@ -22,7 +22,8 @@ test('KUI-26 Wallet code: SEND CODE emails a code, a wrong code is refused', asy
   await kiosk.video?.pause();
   const since = Date.now();
   await kiosk.step('Wallet: type the card number and SEND CODE', async () => {
-    await kiosk.tap(WALLET_TAB, { settleMs: 1000 });
+    // A lost tap on the tab would type the card number into the mobile field (8 Oct 2026).
+    await kiosk.tapUntil(WALLET_TAB, 'Wallet number', { settleMs: 1000 });
     await kiosk.typeDigits(config.customer.clubCard);
     // TOP UP uses kiosk/identity/topup/start; sendCode() asks again if UAT says "Too many attempts".
     const start = await sendCode(kiosk, since);

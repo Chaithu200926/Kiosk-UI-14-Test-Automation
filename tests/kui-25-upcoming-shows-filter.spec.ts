@@ -41,7 +41,13 @@ test('KUI-25 Upcoming shows: the experience filter shows only that experience', 
   test.info().annotations.push({ type: 'experience chips', description: `All, ${seen.join(', ')}` });
 
   await kiosk.step('"All" shows every experience again', async () => {
-    await kiosk.tap('All', { settleMs: 2000 });
-    expect(new Set(await upcomingExperiences(kiosk)), 'Same experiences as at the start').toEqual(all);
+    // A lost tap leaves the last chip's experience listed (8 Oct 2026): tap "All" again until the list is back.
+    let shown = new Set<string>();
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      await kiosk.tap('All', { settleMs: 2000 });
+      shown = new Set(await upcomingExperiences(kiosk));
+      if (shown.size >= all.size) break;
+    }
+    expect(shown, 'Same experiences as at the start').toEqual(all);
   });
 });
