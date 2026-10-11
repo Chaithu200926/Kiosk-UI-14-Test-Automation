@@ -9,7 +9,7 @@ import { config, hidePrivate, privateValues } from './config';
 import type { ScreenArea, ScreenVideo } from './video';
 
 export type KioskSession = Awaited<ReturnType<typeof remote>>;
-export type SeatState = 'available' | 'unavailable' | 'selected';
+export type SeatState = 'available' | 'unavailable' | 'selected' | 'wheelchair';
 export type Seat = { row: string; number: string; x: number; y: number; width: number; height: number };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -270,7 +270,7 @@ export class Kiosk {
 
   /**
    * Seat states from the screen colours (the kiosk exposes no state attribute):
-   * white = available, dark grey = unavailable, red = selected.
+   * white = available, dark grey = unavailable, red = selected, blue = wheelchair or companion seat.
    */
   async seatStates(seats?: Seat[]): Promise<Map<string, SeatState>> {
     // Seats first (or the ones just read): they wait for the map to be drawn, so the screenshot shows the whole map.
@@ -305,7 +305,11 @@ export class Kiosk {
         const i = (png.width * (s.y + dy) + px) << 2;
         r = Math.max(r, png.data[i]); g = Math.max(g, png.data[i + 1]); b = Math.max(b, png.data[i + 2]);
       }
-      const state: SeatState = r > 170 && g < 110 ? 'selected' : r > 170 && g > 170 && b > 170 ? 'available' : 'unavailable';
+      // Build New17 draws wheelchair seats blue (#9DBBEA) and their companion seats light blue (#C9D9F2); the pair
+      // is only sold together, so neither counts as a free seat (nor as a plain unavailable one).
+      const state: SeatState = r > 170 && g < 110 ? 'selected'
+        : b > 200 && b - r > 30 ? 'wheelchair'
+        : r > 170 && g > 170 && b > 170 ? 'available' : 'unavailable';
       states.set(`${s.row}${s.number}`, state);
     }
     return states;
