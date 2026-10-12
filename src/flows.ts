@@ -43,6 +43,25 @@ export async function openUpcomingShow(kiosk: Kiosk, options?: Parameters<typeof
   return show;
 }
 
+/**
+ * Film tiles on the BUY TICKETS screen with the texts each one shows. Build New17: a tile is a DataItem
+ * "FilmShows { Film = Film { Id = ..., Title = ..., Language = ..., Genre = ..., ... } }" showing the title, then
+ * language and rating, then the genre (it showed one "English | Thriller" line before).
+ */
+export async function filmTiles(kiosk: Kiosk) {
+  const xml = await kiosk.app.getPageSource();
+  const unescape = (s: string) => s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&apos;/g, "'");
+  return xml.split('<DataItem ').filter((block) => block.includes('Name="FilmShows { Film = Film {')).map((block) => {
+    const name = block.match(/\bName="([^"]*)"/)![1];
+    return {
+      title: unescape(name.match(/Title = (.*?), SubTitle =/)?.[1] ?? ''),
+      language: name.match(/Language = (.*?), Genre =/)?.[1] ?? '',
+      genre: unescape(name.match(/Genre = (.*?), PosterUrl =/)?.[1] ?? ''),
+      texts: [...block.matchAll(/<Text\b[^>]*\bName="([^"]*)"/g)].map((m) => unescape(m[1])),
+    };
+  });
+}
+
 /** Heading of the first choice after a show time (build New14; "Select Seat Type" before). */
 export const SEAT_CATEGORY = 'SELECT SEAT CATEGORY';
 

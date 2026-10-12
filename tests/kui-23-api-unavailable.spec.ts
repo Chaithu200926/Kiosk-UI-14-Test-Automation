@@ -1,6 +1,7 @@
 // KUI-23: when the UAT API is down the kiosk shows friendly messages, does not crash, and recovers.
 // The outage is simulated by the API recorder (HTTP 503 for every kiosk API call); the kiosk settings are not changed.
 import { test, expect } from '../src/fixtures';
+import { filmTiles } from '../src/flows';
 
 test('KUI-23 API unavailable: friendly messages, no crash, recovers when the API is back', async ({ kiosk }) => {
   const outageStart = Date.now();
@@ -13,8 +14,7 @@ test('KUI-23 API unavailable: friendly messages, no crash, recovers when the API
     // The message itself is drawn but not exposed to UI Automation (see the screenshot); the button is.
     await kiosk.button('Try again', 1, 15_000);
     expect(await kiosk.hasText('FILTER'), 'Still on the film list screen (no crash)').toBe(true);
-    const films = (await kiosk.texts()).filter((t) => /^[A-Za-z]+ \| .+/.test(t));
-    expect(films.length, 'No film tiles while the API is down').toBe(0);
+    expect((await filmTiles(kiosk)).length, 'No film tiles while the API is down').toBe(0);
   });
 
   await kiosk.step('The kiosk\'s calls really failed with 503 (simulated outage)', async () => {
@@ -27,12 +27,14 @@ test('KUI-23 API unavailable: friendly messages, no crash, recovers when the API
     await kiosk.tap('Try again', { settleMs: 3000 });
     await kiosk.waitForText('FILTER');
     expect(await kiosk.hasButton('Try again'), 'Try again gone').toBe(false);
-    const films = (await kiosk.texts()).filter((t) => /^[A-Za-z]+ \| .+/.test(t));
-    expect(films.length, 'Film tiles after recovery').toBeGreaterThan(0);
+    // The tiles can still be loading just after Try again.
+    await expect.poll(async () => (await filmTiles(kiosk)).length, { message: 'Film tiles after recovery', timeout: 15_000 })
+      .toBeGreaterThan(0);
   });
 
   await kiosk.step('API down again: ORDER F&B shows "Food is not available at this kiosk right now"', async () => {
-    await kiosk.tap('HOME', { settleMs: 2000 });
+    // Just after the film list has loaded again a tap can be lost (build New17), so tap HOME until the home screen shows.
+    await kiosk.tapUntil('HOME', 'UPCOMING SHOWS', { settleMs: 2000, timeout: 5_000, attempts: 3 });
     kiosk.apiOutage(true);
     await kiosk.tap('ORDER F&B', { settleMs: 3000 });
     const message = await kiosk.textStartingWith('Food is not available');

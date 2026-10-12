@@ -115,7 +115,9 @@ export class Kiosk {
    * Taps the button with this label until `text` appears. Build New15 loses a tap now and then (the screen does not
    * change), so it taps again (up to `attempts` taps in all) when the text has not appeared after `timeout`.
    * The taps after the first one click at the button's place on the screen: on 8 Oct 2026 three element clicks
-   * on "KWD 10" in a row never reached the kiosk (it did not even reset its idle timer).
+   * on "KWD 10" in a row never reached the kiosk (it did not even reset its idle timer). On 11 Oct 2026 (build
+   * New17, QA PC runner) both kinds of click were lost for minutes, so the last try presses the button through
+   * UI Automation (no mouse at all).
    */
   async tapUntil(label: string, text: string, options: { timeout?: number; settleMs?: number; attempts?: number } = {}) {
     const timeout = options.timeout ?? 12_000;
@@ -126,18 +128,22 @@ export class Kiosk {
         return await this.waitForText(text, timeout);
       } catch (e) {
         if (attempt > attempts) throw e;
-        if (await this.hasButton(label)) await this.tap(label, { settleMs: options.settleMs, atPlace: true });
+        const last = attempt === attempts;
+        if (await this.hasButton(label)) await this.tap(label, { settleMs: options.settleMs, atPlace: !last, invoke: last });
       }
     }
   }
 
   /**
    * Taps the button with this label and gives the screen a moment to change. `atPlace` clicks the screen at the
-   * button's centre (a real mouse click) instead of the element click.
+   * button's centre (a real mouse click) instead of the element click; `invoke` presses it through UI Automation
+   * (no mouse), for when mouse clicks do not reach the kiosk.
    */
-  async tap(label: string, options: { nth?: number; timeout?: number; settleMs?: number; atPlace?: boolean } = {}) {
+  async tap(label: string, options: { nth?: number; timeout?: number; settleMs?: number; atPlace?: boolean; invoke?: boolean } = {}) {
     const el = await this.button(label, options.nth, options.timeout);
-    if (options.atPlace) {
+    if (options.invoke) {
+      await this.app.execute('windows: invoke', el);
+    } else if (options.atPlace) {
       const [pos, size] = [await el.getLocation(), await el.getSize()];
       await this.app.execute('windows: click', { x: Math.round(pos.x + size.width / 2), y: Math.round(pos.y + size.height / 2) });
     } else {
@@ -173,14 +179,16 @@ export class Kiosk {
 
   /**
    * Types digits on the on-screen keypad one at a time. Fast taps are sometimes dropped by the kiosk,
-   * so after typing it checks the displayed value and retries once. `shownAs: null` skips the check
+   * so after typing it checks the displayed value and retries once, pressing the keys through UI Automation
+   * (on 11 Oct 2026 no mouse click reached the kiosk for minutes). `shownAs: null` skips the check
    * (e.g. a code typed into one box per digit).
    */
   async typeDigits(digits: string, shownAs: string | null = digits) {
     for (let attempt = 1; attempt <= 2; attempt++) {
-      for (const d of digits) await this.tap(d, { settleMs: 350 });
+      const invoke = attempt > 1;
+      for (const d of digits) await this.tap(d, { settleMs: 350, invoke });
       if (shownAs === null || await this.hasText(shownAs)) return;
-      for (let i = 0; i < digits.length + 2; i++) await this.tap('⌫', { settleMs: 200 });
+      for (let i = 0; i < digits.length + 2; i++) await this.tap('⌫', { settleMs: 200, invoke });
     }
     throw new Error(`The keypad did not show "${hidePrivate(shownAs ?? '')}" after typing it twice`);
   }

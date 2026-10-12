@@ -1,5 +1,6 @@
 // KUI-03: BUY TICKETS (films showing now) lists today's films and each film shows the show times from today's programme.
 import { test, expect } from '../src/fixtures';
+import { filmTiles } from '../src/flows';
 import { pickShow, showsFromCalls } from '../src/programme';
 
 test('KUI-03 Films and show times match today\'s programme', async ({ kiosk }) => {
@@ -13,11 +14,14 @@ test('KUI-03 Films and show times match today\'s programme', async ({ kiosk }) =
 
   // Returns a film on the first screen (no scrolling) that still has a show later today.
   const show = (await kiosk.step('Every film tile on screen is in today\'s programme', async () => {
-    const texts = await kiosk.texts();
-    const tiles = texts.filter((t) => filmsToday.has(t));
-    expect(tiles.length, 'Film tiles shown').toBeGreaterThan(0);
-    // Each tile shows "Language | Genre" under the title.
-    expect.soft(texts.some((t) => /^[A-Za-z]+ \| .+/.test(t)), 'Language | genre line on the tiles').toBe(true);
+    // The tiles can take a few seconds to be drawn after BUY TICKETS.
+    let tiles = await filmTiles(kiosk);
+    await expect.poll(async () => (tiles = await filmTiles(kiosk)).filter((t) => filmsToday.has(t.title)).length,
+      { message: 'Film tiles shown', timeout: 15_000 }).toBeGreaterThan(0);
+    // Each tile shows the title, then the language and rating, then the genre (build New17).
+    const [first] = tiles;
+    expect.soft(first.texts, `"${first.title}" tile shows its language`).toContain(first.language);
+    expect.soft(first.texts, `"${first.title}" tile shows its genre`).toContain(first.genre);
     const onScreen = new Set((await kiosk.visibleTexts()).map((t) => t.name));
     return pickShow(programme.filter((s) => onScreen.has(s.film)));
   }))!;
