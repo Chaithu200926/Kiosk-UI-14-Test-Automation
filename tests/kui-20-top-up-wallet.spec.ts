@@ -37,7 +37,9 @@ test('KUI-20 Top up the club card with KWD 10 by KNET', async ({ kiosk }) => {
   const since = Date.now();
   await kiosk.step(`Choose KWD ${AMOUNT} and PAY by KNET (the fake terminal approves)`, async () => {
     // The button then reads "PAY KWD 10.000". On 8 Oct 2026 two taps in a row were lost, so up to three quick tries
-    // (5 s each), well before "Are you still there?" (~30 s).
+    // (5 s each), well before "Are you still there?" (~30 s). The checks above can take 20 s on the QA PC runner,
+    // enough for the prompt to cover the amounts already (12 Oct 2026): answer it first.
+    await kiosk.stillHere();
     await kiosk.tapUntil(`KWD ${AMOUNT}`, `PAY KWD ${AMOUNT.toFixed(3)}`, { settleMs: 800, timeout: 5_000, attempts: 3 });
     await tapPay(kiosk, AMOUNT);
   });

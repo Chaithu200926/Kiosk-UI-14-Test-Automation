@@ -10,6 +10,8 @@ const COUNTRIES = ['Kuwait', 'Saudi Arabia', 'United Arab Emirates', 'Qatar', 'B
 const METHODS = ['KNET / CREDIT CARD', 'WALLET', 'GIFT CARD', 'VOUCHER'];
 
 test('KUI-29 Checkout: country code picker and the payment methods', async ({ kiosk, config }) => {
+  // On the QA PC runner a lost keypad attempt and its retry make it run past 5 minutes (12 Oct 2026).
+  test.setTimeout(8 * 60_000);
   if (!config.mobile) throw new Error('Set KIOSK_TEST_MOBILE in .env');
   await openUpcomingShow(kiosk);
   await chooseSeatsType(kiosk, 'General', 1);

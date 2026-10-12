@@ -128,6 +128,8 @@ export class Kiosk {
         return await this.waitForText(text, timeout);
       } catch (e) {
         if (attempt > attempts) throw e;
+        // "Are you still there?" covers the screen and hides the button (12 Oct 2026, KUI-20 on the runner).
+        await this.stillHere();
         const last = attempt === attempts;
         if (await this.hasButton(label)) await this.tap(label, { settleMs: options.settleMs, atPlace: !last, invoke: last });
       }
