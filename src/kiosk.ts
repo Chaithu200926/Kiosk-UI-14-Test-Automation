@@ -183,13 +183,17 @@ export class Kiosk {
    * Types digits on the on-screen keypad one at a time. Fast taps are sometimes dropped by the kiosk,
    * so after typing it checks the displayed value and retries once, pressing the keys through UI Automation
    * (on 11 Oct 2026 no mouse click reached the kiosk for minutes). `shownAs: null` skips the check
-   * (e.g. a code typed into one box per digit).
+   * (e.g. a code typed into one box per digit). "Are you still there?" can cover the keypad and take the taps
+   * (13 Oct 2026, KUI-26 on Pre-UAT), so it is answered before typing, and the digits are typed again if it showed.
    */
   async typeDigits(digits: string, shownAs: string | null = digits) {
     for (let attempt = 1; attempt <= 2; attempt++) {
       const invoke = attempt > 1;
+      await this.stillHere();
       for (const d of digits) await this.tap(d, { settleMs: 350, invoke });
-      if (shownAs === null || await this.hasText(shownAs)) return;
+      const interrupted = await this.hasText('Are you still there?');
+      if (interrupted) await this.stillHere();
+      else if (shownAs === null || await this.hasText(shownAs)) return;
       for (let i = 0; i < digits.length + 2; i++) await this.tap('⌫', { settleMs: 200, invoke });
     }
     throw new Error(`The keypad did not show "${hidePrivate(shownAs ?? '')}" after typing it twice`);
