@@ -237,21 +237,32 @@ export async function addFood(kiosk: Kiosk, item = CHEAP_FOOD) {
   // Each menu row (build New14) is a DataItem "...FoodItemView" holding its ADD button, image, name and price.
   const before = await cartTotal(kiosk);
   const row = () => kiosk.app.$(`//DataItem[@Name="Cinescape.Kiosk.Presentation.Screens.FoodItemView"][.//Text[@Name="${item.name}"]]//Button[@Name="${FOOD_ADD}"]`);
-  // A tap while the tab is still loading is lost, so wait for the item sheet (or the total to change) and tap once more if needed.
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    await row().click();
-    for (let i = 0; i < 10; i++) {
+  // A tap while the tab is still loading is lost, so wait for the item sheet (or the total to change) and tap again if
+  // needed: the element click first, then a click at the button's place, then a press through UI Automation (no mouse).
+  // On the QA PC runner the waits left the kiosk untouched long enough for "Are you still there?" to cover the menu,
+  // and the next tap landed on the prompt (13 Oct 2026, KUI-08): answer it before every tap.
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    await kiosk.stillHere();
+    const add = await row();
+    if (attempt === 1) await add.click();
+    else if (attempt === 2) {
+      const [pos, size] = [await add.getLocation(), await add.getSize()];
+      await kiosk.app.execute('windows: click', { x: Math.round(pos.x + size.width / 2), y: Math.round(pos.y + size.height / 2) });
+    } else await kiosk.app.execute('windows: invoke', add);
+    for (let i = 0; i < 8; i++) {
       await new Promise((r) => setTimeout(r, 500));
+      const texts = await kiosk.texts();
+      if (texts.includes('Are you still there?')) break;
       // Build New14 opens a sheet for every item (here an optional "Temperature" choice); it repeats the item's
       // name as its title, so the name shows twice while it is open. Confirm it with Done.
-      if ((await kiosk.texts()).filter((t) => t === item.name).length > 1) {
+      if (texts.filter((t) => t === item.name).length > 1) {
         await addFromSheet(kiosk);
         return;
       }
       if ((await cartTotal(kiosk)) !== before) return;
     }
   }
-  throw new Error(`Tapping ADD for "${item.name}" did not add it (tapped twice)`);
+  throw new Error(`Tapping ADD for "${item.name}" did not add it (tapped three times)`);
 }
 
 /** True when the food line "Aquafina Water UAT  × 1" (build New15; "1 x Aquafina Water UAT" before) is on the screen. */
