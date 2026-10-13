@@ -3,7 +3,7 @@
 #
 # Start it by hand from the Actions tab ("Run workflow"). It needs the self-hosted runner with label "kiosk-ui"
 # started with C:/actions-runner/run.cmd in the logged-in, unlocked desktop session of the QA PC (the kiosk opens
-# full screen), and build New17 in C:/ProgramData/KNCC/CinescapeKioskNew17 with its kiosk.settings.json.
+# full screen), and build New17 in "C:/ProgramData/KNCC/CinescapeKioskNew17-Pre UAT" with its kiosk.settings.json.
 # It shares its queue with "KIOSK UI Testing", so two runs never use the one kiosk at the same time.
 name: Kiosk - 17 Execution
 
@@ -40,7 +40,8 @@ jobs:
       run:
         shell: powershell
     env:
-      KIOSK_APP_PATH: C:\ProgramData\KNCC\CinescapeKioskNew17\CinescapeKiosk.exe
+      # Folder renamed on 13 Oct 2026; its kiosk.settings.json now points at the Pre-UAT API (10.35.1.66:8120).
+      KIOSK_APP_PATH: C:\ProgramData\KNCC\CinescapeKioskNew17-Pre UAT\CinescapeKiosk.exe
       # Another project on the QA PC (CinescapeAndroid-Automation) may hold Appium's usual port 4723.
       APPIUM_PORT: '4733'
     steps:
