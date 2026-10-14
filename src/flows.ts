@@ -9,8 +9,8 @@ export const kwd = (text: string) => Number((text.match(/KWD\s*([\d.]+)/) || [])
 
 /** Picks a show later today with free seats, from the programme the kiosk loaded at start-up. */
 export async function upcomingShow(kiosk: Kiosk, options?: Parameters<typeof pickShow>[1]): Promise<Show> {
-  await kiosk.waitForApiCall('content/csessions');
-  return pickShow(showsFromCalls(kiosk.apiCalls()), options);
+  await kiosk.waitForApiCall('content/csessions', kiosk.launchedAt);
+  return pickShow(showsFromCalls(kiosk.apiCalls(kiosk.launchedAt)), options);
 }
 
 /**
@@ -19,8 +19,8 @@ export async function upcomingShow(kiosk: Kiosk, options?: Parameters<typeof pic
  * Standard shows by default: VIP and other experiences have different seat categories (no "General").
  */
 export async function openUpcomingShow(kiosk: Kiosk, options?: Parameters<typeof pickShow>[1]): Promise<Show> {
-  await kiosk.waitForApiCall('content/csessions');
-  const programme = showsFromCalls(kiosk.apiCalls());
+  await kiosk.waitForApiCall('content/csessions', kiosk.launchedAt);
+  const programme = showsFromCalls(kiosk.apiCalls(kiosk.launchedAt));
   const show = (await kiosk.step('Open BUY TICKETS (films showing now)', async () => {
     await kiosk.tap('BUY TICKETS', { settleMs: 1500 });
     // The film titles can still be loading: read the screen again a few times before giving up.

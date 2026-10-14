@@ -44,6 +44,8 @@ jobs:
       KIOSK_APP_PATH: C:\ProgramData\KNCC\CinescapeKioskNew17-Pre UAT\CinescapeKiosk.exe
       # Another project on the QA PC (CinescapeAndroid-Automation) may hold Appium's usual port 4723.
       APPIUM_PORT: '4733'
+      # The QA PC's own .env (test account, club card, admin PIN; never in the repo).
+      KIOSK_UI_ENV_FILE: C:\softwares\vs code\playwright\CinescapeKiosk-UI-Automation\.env
     steps:
       # Get the code, including the committed run history in reports/.
       - name: Check out the code
@@ -61,10 +63,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # The test account, club card and admin PIN are never in the repo: use the QA PC's own .env file
-      # (repository variable KIOSK_UI_ENV_FILE, or the project folder on the QA PC).
+      # The test account, club card and admin PIN are never in the repo: use the QA PC's own .env file (KIOSK_UI_ENV_FILE above).
       - name: Use the QA PC's test settings
-        run: Copy-Item -LiteralPath "${{ vars.KIOSK_UI_ENV_FILE || 'C:\softwares\vs code\playwright\CinescapeKiosk-UI-Automation\.env' }}" -Destination .env
+        run: Copy-Item -LiteralPath $env:KIOSK_UI_ENV_FILE -Destination .env
 
       # Run the tests. Failed tests do not stop the job: they are reported on the dashboard.
       # The chosen test IDs come in through an environment variable (not pasted into the script) and only

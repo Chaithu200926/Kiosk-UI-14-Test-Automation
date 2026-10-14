@@ -32,7 +32,12 @@ export class Kiosk {
   private lastSeats: Seat[] = [];
   private shot = 0;
 
-  constructor(readonly app: KioskSession, private readonly testInfo: TestInfo, private readonly startedAt: number) {}
+  /**
+   * `startedAt`: when this test started. `launchedAt`: when the kiosk app was opened, which can be several tests
+   * earlier (the kiosk stays open between tests); calls the kiosk makes at start-up (content/csessions) come after it.
+   */
+  constructor(readonly app: KioskSession, private readonly testInfo: TestInfo, private readonly startedAt: number,
+    readonly launchedAt = startedAt) {}
 
   // ---------- finding things ----------
 
@@ -380,9 +385,9 @@ export class Kiosk {
     else fs.rmSync(file, { force: true });
   }
 
-  /** Kiosk API calls made since this test started (from the recorder). */
-  apiCalls(): RecordedCall[] {
-    return readRecordedCalls(config.apiCallsFile, this.startedAt);
+  /** Kiosk API calls made since this test started, or since `since` (from the recorder). */
+  apiCalls(since = this.startedAt): RecordedCall[] {
+    return readRecordedCalls(config.apiCallsFile, since);
   }
 
   /** Waits until the kiosk has made a call whose path starts with `path`, and returns the latest one. */
@@ -416,6 +421,8 @@ export class Kiosk {
 
   async backToHome(maxPresses = 8) {
     for (let i = 0; i < maxPresses; i++) {
+      // "Are you still there?" covers the buttons below it.
+      await this.stillHere();
       if (await this.hasText(HOME_MARKER) && await this.hasText('UPCOMING SHOWS')) return;
       if (await this.hasButton('Done')) await this.closeSheet();
       else if (await this.hasButton('HOME')) await this.tap('HOME', { settleMs: 1500 });

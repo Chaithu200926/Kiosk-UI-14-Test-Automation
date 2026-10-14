@@ -4,7 +4,9 @@ End-to-end UI tests for the **CinescapeKiosk** Windows app (WPF, build `Cinescap
 The kiosk is driven with [Appium](https://appium.io) and its **NovaWindows** driver (Windows UI Automation);
 [Playwright Test](https://playwright.dev) is the test runner and report, the same as the web and API projects.
 
-Every test gets a freshly started kiosk and its report contains:
+The kiosk is opened once and stays open between tests. Before each test it is checked: still running, on the
+home screen, in English, no popup. If not, or if the previous test failed, it is closed and started fresh. Every
+test's report contains:
 
 - a **screenshot for every step** (cropped to the kiosk screen),
 - a **video** of the whole test (recorded with ffmpeg),
@@ -79,8 +81,10 @@ npm run publish-results -- "message"   # commit, run the tests, build reports/ a
 npm run publish-results -- --last-run "message"   # same, but publish the last run instead of paying for a new one
 ```
 
-A running kiosk app is closed before each test, and the kiosk is closed again afterwards. If a test stops
-in the middle of a booking, the kiosk is backed out to the home screen first, so held seats are released.
+After each test the kiosk is backed out to the home screen (Cancel / HOME), so held seats are released and the
+basket is emptied. After a failed test, or when it cannot get home, the kiosk is closed and the next test starts it
+fresh (saved data cleared). KUI-01 always starts it fresh. Each report notes "kiosk: Reused..." or "kiosk: Started
+fresh: <reason>". The kiosk is closed at the end of the run.
 
 ## Publishing (GitHub Pages dashboard)
 
@@ -102,7 +106,7 @@ full screen). It uses the QA PC's own `.env` (repository variable `KIOSK_UI_ENV_
 
 | File | Purpose |
 |---|---|
-| `src/fixtures.ts` | Starts a fresh kiosk per test, records the video, attaches screenshots / API calls, closes the kiosk. |
+| `src/fixtures.ts` | Opens the kiosk once, checks it is home and ready before each test (fresh start after a failure), records the video, attaches screenshots / API calls. |
 | `src/kiosk.ts` | Tap buttons by their visible text, wait for texts, keypad typing with a check, seat map and seat colours, cropped screenshots, `kiosk.step()`. |
 | `src/flows.ts` | Shared booking steps (open a show, seat category and type, pick free seats, cart total, check the reservation). They never go past "Preview and Checkout". |
 | `src/api-recorder.ts` | Local HTTP proxy: the kiosk inherits `HTTP_PROXY` from Appium, so every API call it makes is recorded to `test-results/kiosk-api-calls.jsonl`. |

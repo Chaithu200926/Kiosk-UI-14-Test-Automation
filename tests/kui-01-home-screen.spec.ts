@@ -1,6 +1,9 @@
 // KUI-01: the kiosk starts without an error and shows the complete home screen (layout of build New14).
 import { test, expect } from '../src/fixtures';
 
+// This test is about the app starting, so it always gets a freshly started kiosk (not the one left open).
+test.use({ freshKiosk: true });
+
 test('KUI-01 App start: the home screen loads with all menu buttons', async ({ kiosk }) => {
   // The fixture has already started the app and waited for the main menu.
   await kiosk.step('Kiosk started and the home screen is shown');
@@ -32,7 +35,7 @@ test('KUI-01 App start: the home screen loads with all menu buttons', async ({ k
   });
 
   await kiosk.step('The kiosk loaded today\'s programme from the API', async () => {
-    const programme = await kiosk.waitForApiCall('content/csessions');
+    const programme = await kiosk.waitForApiCall('content/csessions', kiosk.launchedAt);
     expect(programme.status, 'HTTP status of content/csessions').toBe(200);
     expect((programme.responseBody as { code?: number }).code, 'Response code').toBe(10001);
   });

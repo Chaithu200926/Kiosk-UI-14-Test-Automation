@@ -4,8 +4,8 @@ import { filmTiles } from '../src/flows';
 import { pickShow, showsFromCalls } from '../src/programme';
 
 test('KUI-03 Films and show times match today\'s programme', async ({ kiosk }) => {
-  await kiosk.waitForApiCall('content/csessions');
-  const programme = showsFromCalls(kiosk.apiCalls());
+  await kiosk.waitForApiCall('content/csessions', kiosk.launchedAt);
+  const programme = showsFromCalls(kiosk.apiCalls(kiosk.launchedAt));
   const filmsToday = new Set(programme.map((s) => s.film));
 
   await kiosk.step('Open BUY TICKETS (films showing now)', async () => {
